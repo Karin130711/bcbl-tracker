@@ -314,6 +314,14 @@ tbody td:first-child{padding-right:10px;text-align:right}
       <option value="ידני">📄 ידני</option>
       <option value="משולב">🔀 משולב</option>
     </select>
+    <select class="sel" id="miFilt" onchange="renderTable()">
+      <option value="">כל חשבוניות חסרות</option>
+      <option value="never">⚠️ מעולם לא נשלח</option>
+      <option value="old">🔴 לפני 4+ חודשים</option>
+      <option value="medium">🟡 לפני 2-3 חודשים</option>
+      <option value="ok">🟢 עדכני (עד חודש)</option>
+      <option value="corp">🏢 חברות ועמותות</option>
+    </select>
     <input class="srch" id="srch" type="text" placeholder="🔍 חיפוש..." oninput="renderTable()">
   </div>
 
@@ -893,6 +901,16 @@ function getFilteredRows(){
       if(!s.includes(sendF)) return false;
     }
     if(srch && !row[0].toLowerCase().includes(srch) && !acct.toLowerCase().includes(srch)) return false;
+    const miF = document.getElementById('miFilt')?.value||'';
+    if(miF){
+      const cd2=getClientData(row[0]); const typ=cd2.typeOverride||row[1]||'';
+      const corp=isCorp(typ); const mi2=getMiData(row[0]); const ago2=monthsAgo(mi2.lastMonth);
+      if(miF==='corp' && !corp) return false;
+      if(miF==='never' && (mi2.lastMonth||!corp)) return false;
+      if(miF==='old' && (!corp||ago2<=3)) return false;
+      if(miF==='medium' && (!corp||ago2<=1||ago2>3)) return false;
+      if(miF==='ok' && (!corp||ago2>1)) return false;
+    }
     const cks = getChecks(curMonth, curTab, row);
     const dispIdxs = curTab==='vat' ? [0,2,3,4,5] : [0,1,2,3,4,5];
     const rel = dispIdxs.map(i=>cks[i]).filter(c => c !== null);
@@ -961,6 +979,7 @@ function _renderTable(){
     <th style="width:54px;text-align:center;font-size:11px">📤 שליחה<br>ללקוח</th>
     <th style="width:58px;text-align:center;font-size:11px">⚙️ קליטת<br>מעמ</th>
     <th style="width:46px;text-align:center;font-size:11px">📝 הערות<br>תיק</th>
+    <th style="width:62px;text-align:center;font-size:11px">🧾 חשבוניות<br>חסרות</th>
   </tr>`;
 
   // Rows
@@ -1041,6 +1060,7 @@ function _renderTable(){
       <td style="text-align:center">
         ${renderFileNoteBtn(row[0])}
       </td>
+      ${renderMissingInvoiceCell(row[0], row[1]||'',(start+rowIdx))}
     </tr>`;
   }).join('');
 
@@ -1388,6 +1408,73 @@ function closeSummaryPanel(){
 
 
 
+
+
+// ── Missing Invoices ──
+const CORP_TYPES = ['חברה מורשית','חברה','עמותה','מלכר'];
+
+function isCorp(type){
+  const t = (type||'').replace(/['"״]/g,'');
+  return CORP_TYPES.some(c => t.includes(c));
+}
+
+function miKey(clientName){ return 'bl_mi_'+clientName.replace(/[^א-ת\w]/g,'_').slice(0,50); }
+function getMiData(clientName){ return LSG(miKey(clientName)) || {lastMonth:null}; }
+function setMiData(clientName, month){ LSS(miKey(clientName), {lastMonth:month, lastDate:new Date().toISOString()}); }
+
+function monthsAgo(monthStr){
+  if(!monthStr) return 999;
+  const [mm,yy] = monthStr.split('/').map(Number);
+  const [cm,cy] = curMonth.split('/').map(Number);
+  return (cy - yy)*12 + (cm - mm);
+}
+
+// Store clientName in a global map by row index for safe onclick
+const _miClients = {};
+
+function renderMissingInvoiceCell(clientName, type, idx){
+  const cd = getClientData(clientName);
+  const actualType = cd.typeOverride || type;
+  _miClients[idx] = clientName;
+
+  if(!isCorp(actualType)){
+    return '<td style="text-align:center"><span style="color:#CBD5E1">—</span></td>';
+  }
+
+  const mi = getMiData(clientName);
+  const ago = monthsAgo(mi.lastMonth);
+
+  if(!mi.lastMonth){
+    return '<td style="text-align:center">' +
+      '<button class="mi-btn" data-idx="'+idx+'" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;border:1.5px dashed #CBD5E1;background:#F8FAFC;color:#64748B;cursor:pointer;white-space:nowrap">' +
+      '+ שלחתי</button></td>';
+  }
+
+  const color = ago <= 1 ? '#16A34A' : ago <= 3 ? '#D97706' : '#DC2626';
+  const bg    = ago <= 1 ? '#F0FDF4' : ago <= 3 ? '#FFFBEB' : '#FEF2F2';
+  const warn  = ago > 3 ? ' ⚠️' : '';
+
+  return '<td style="text-align:center">' +
+    '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
+    '<span class="mi-btn" data-idx="'+idx+'" style="font-size:10px;font-weight:700;background:'+bg+';color:'+color+';padding:2px 8px;border-radius:8px;cursor:pointer;white-space:nowrap">'+mi.lastMonth+warn+'</span>' +
+    '<span style="font-size:9px;color:'+color+'">לפני '+ago+' חודש'+(ago===1?'':'ים')+'</span>' +
+    '</div></td>';
+}
+
+function markMissingInvoice(clientName){
+  setMiData(clientName, curMonth);
+  renderTable();
+  toast('✓ דוח חשבוניות חסרות — סומן לחודש ' + curMonth);
+}
+
+// Event delegation for mi-btn clicks
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('.mi-btn');
+  if(!btn) return;
+  const idx = btn.dataset.idx;
+  const name = _miClients[idx];
+  if(name) markMissingInvoice(name);
+});
 
 // ── File Notes ──
 let _fnClient = null;
