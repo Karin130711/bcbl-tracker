@@ -886,6 +886,25 @@ function getRawRows(){
   });
   return base;
 }
+function getVatAcct(month, clientName){
+  const vatRows=(DATA[month]?.v)||[];
+  const name = (clientName||'').trim();
+  // 1. Exact match
+  let vatRow = vatRows.find(r=>(r[0]||'').trim()===name);
+  // 2. Partial match: VAT name is contained in salary name or vice versa
+  if(!vatRow){
+    vatRow = vatRows.find(r=>{
+      const vn = (r[0]||'').trim();
+      return vn.length > 3 && (name.startsWith(vn) || vn.startsWith(name));
+    });
+  }
+  if(vatRow){
+    const vn = (vatRow[0]||'').trim();
+    return (getAssignments()[month]||{})[vn] || (getAssignments()[month]||{})[name] || vatRow[2]||'';
+  }
+  return '';
+}
+
 function getFilteredRows(){
   const raw = getRawRows();
   const acctF = document.getElementById('acctFilt').value.trim();
@@ -893,7 +912,7 @@ function getFilteredRows(){
   const sendF = sendFiltEl ? sendFiltEl.value.trim() : '';
   const srch = (document.getElementById('srch').value||'').toLowerCase();
   return raw.filter(row => {
-    const acct = getClientAcct(curMonth, row);
+    const acct = curTab==='sal' ? (getVatAcct(curMonth, row[0])||getClientAcct(curMonth, row)) : getClientAcct(curMonth, row);
     if(acctF && acct !== acctF) return false;
     if(sendF){
       const cd = getClientData(row[0]);
@@ -965,7 +984,7 @@ function _renderTable(){
   const page = rows.slice(start, start+PAGE);
 
   // Header
-  document.getElementById('thead').innerHTML = `<tr>
+  document.getElementById('thead').innerHTML = curTab === 'vat' ? `<tr>
     <th style="text-align:right;padding-right:12px">שם לקוח</th>
     <th style="width:90px;text-align:center;font-size:11px">בטיפול מנהלת<br>החשבונות</th>
     <th style="width:80px;text-align:center;font-size:11px">📱 שליחה</th>
@@ -980,11 +999,14 @@ function _renderTable(){
     <th style="width:58px;text-align:center;font-size:11px">⚙️ קליטת<br>מעמ</th>
     <th style="width:46px;text-align:center;font-size:11px">📝 הערות<br>תיק</th>
     <th style="width:62px;text-align:center;font-size:11px">🧾 חשבוניות<br>חסרות</th>
+  </tr>` : `<tr>
+    <th style="text-align:right;padding-right:12px">שם לקוח</th>
+    <th style="width:90px;text-align:center;font-size:11px">בטיפול חשבת<br>השכר</th>
   </tr>`;
 
   // Rows
   document.getElementById('tbody').innerHTML = page.map(row => {
-    const acct = getClientAcct(curMonth, row);
+    const acct = curTab==='sal' ? (getVatAcct(curMonth, row[0])||getClientAcct(curMonth, row)) : getClientAcct(curMonth, row);
     const cks = getChecks(curMonth, curTab, row);
     const dispForPct = curTab==='vat' ? [0,2,3,4,5] : [0,1,2,3,4,5];
     const rel = dispForPct.map(i=>cks[i]).filter(c => c!==null);
@@ -1020,47 +1042,38 @@ function _renderTable(){
         <div class="tp">${(()=>{const cd=getClientData(row[0]);const tp=cd.typeOverride||row[1]||'';const tx=cd.taxId||'';return tp+(tx?' · <span style="color:var(--accent)">'+tx+'</span>':'');})()}</div>
       </td>
       <td style="text-align:center">
-        <span class="atag" style="background:${acol}22;color:${acol};cursor:pointer"
-          onclick="showReDd(event,'${row[0].replace(/'/g,"\'")}','${acct}')"
-          title="לחצי לשינוי">${acct||'—'}</span>
+        <span class="atag acct-clk" style="background:${acol}22;color:${acol};cursor:pointer" data-rowidx="${start+rowIdx}" data-acct="${acct}"
+          title="לחצי לשינוי מנח&quot;ש">${acct||'—'}</span>
       </td>
-      ${getSendBadge(row[0], row[4]||'')}
-      ${makeCb(cks[0], start+rowIdx, 0)}
-      ${makeCb(cks[2], start+rowIdx, 2)}
-      ${makeCb(cks[3], start+rowIdx, 3)}
-      ${makeCb(cks[4], start+rowIdx, 4)}
-      ${makeCb(cks[5], start+rowIdx, 5)}
-      <td style="text-align:center">
-        <div class="ring">
-          <svg width="28" height="28" viewBox="0 0 34 34" style="transform:rotate(-90deg)">
-            <circle cx="17" cy="17" r="11" fill="none" stroke="#E2E8F0" stroke-width="2.5"/>
-            <circle cx="17" cy="17" r="11" fill="none" stroke="${pct===100?'var(--success)':pct>0?'var(--warn)':'#CBD5E1'}" stroke-width="2.5"
-              stroke-dasharray="${(2*Math.PI*11).toFixed(1)}" stroke-dashoffset="${(2*Math.PI*11*(1-pct/100)).toFixed(1)}" stroke-linecap="round"/>
-          </svg>
-          <div class="ring-txt">${pct}</div>
-        </div>
-      </td>
-      <td style="text-align:center">
-        <button onclick="openSummaryPanel('${row[0].replace(/'/g,"\'")}','${acct}')"
-          style="width:26px;height:26px;border-radius:6px;border:1.5px dashed #CBD5E1;background:#F8FAFC;color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s"
-          onmouseover="this.style.background='#EFF6FF';this.style.borderColor='var(--accent)'"
-          onmouseout="this.style.background='#F8FAFC';this.style.borderColor='#CBD5E1'"
-          title="ריכוז נתונים">+</button>
-      </td>
-      <td style="text-align:center">
-        <button onclick="sendToClient('${row[0].replace(/'/g,"\'")}',event)"
-          style="width:26px;height:26px;border-radius:6px;border:1.5px dashed #CBD5E1;background:#F8FAFC;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s"
-          onmouseover="this.style.background='#F0FDF4';this.style.borderColor='#16A34A'"
-          onmouseout="this.style.background='#F8FAFC';this.style.borderColor='#CBD5E1'"
-          title="שליחה ללקוח">📤</button>
-      </td>
-      <td style="text-align:center">
-        ${renderVatCmdCell(row[0])}
-      </td>
-      <td style="text-align:center">
-        ${renderFileNoteBtn(row[0])}
-      </td>
-      ${renderMissingInvoiceCell(row[0], row[1]||'',(start+rowIdx))}
+      ${curTab==='vat' ? (() => {
+        return getSendBadge(row[0], row[4]||'') +
+        makeCb(cks[0], start+rowIdx, 0) +
+        makeCb(cks[2], start+rowIdx, 2) +
+        makeCb(cks[3], start+rowIdx, 3) +
+        makeCb(cks[4], start+rowIdx, 4) +
+        makeCb(cks[5], start+rowIdx, 5) + `
+        <td style="text-align:center">
+          <div class="ring">
+            <svg width="28" height="28" viewBox="0 0 34 34" style="transform:rotate(-90deg)">
+              <circle cx="17" cy="17" r="${ri}" fill="none" stroke="#E2E8F0" stroke-width="2.5"/>
+              <circle cx="17" cy="17" r="${ri}" fill="none" stroke="${ringColor}" stroke-width="2.5"
+                stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+            </svg>
+            <div class="ring-txt">${pct}</div>
+          </div>
+        </td>
+        <td style="text-align:center">
+          <button onclick="openSummaryPanel('${row[0].replace(/'/g,"\'")}','${acct}')"
+            style="width:26px;height:26px;border-radius:6px;border:1.5px dashed #CBD5E1;background:#F8FAFC;color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center">+</button>
+        </td>
+        <td style="text-align:center">
+          <button onclick="sendToClient('${row[0].replace(/'/g,"\'")}',event)"
+            style="width:26px;height:26px;border-radius:6px;border:1.5px dashed #CBD5E1;background:#F8FAFC;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center">📤</button>
+        </td>
+        <td style="text-align:center">${renderVatCmdCell(row[0])}</td>
+        <td style="text-align:center">${renderFileNoteBtn(row[0])}</td>` +
+        renderMissingInvoiceCell(row[0], row[1]||'',(start+rowIdx));
+      })() : ''}
     </tr>`;
   }).join('');
 
@@ -1113,12 +1126,14 @@ function handleToggle(absIdx, colIdx){
 }
 
 // ── Quick reassign dropdown ──
+let _reDdClient = null;
 function showReDd(e, clientName, curAcct){
   e.stopPropagation();
+  _reDdClient = clientName;
   const dd = document.getElementById('reDd');
   const accts = getAccts();
-  dd.innerHTML = `<div style="font-size:11px;color:var(--gray);padding:4px 8px 8px;font-weight:600">בחרי מנח"ש:</div>` +
-    accts.map(a => `<button onclick="quickReassign('${clientName.replace(/'/g,"\'")}','${a}')">${a}${a===curAcct?' ✓':''}</button>`).join('');
+  dd.innerHTML = '<div style="font-size:11px;color:var(--gray);padding:4px 8px 8px;font-weight:600">בחרי מנח\"ש:</div>' +
+    accts.map((a,i) => '<button class="redd-opt" data-acct="'+encodeURIComponent(a)+'">' + a + (a===curAcct?' ✓':'') + '</button>').join('');
   dd.style.display = 'block';
   const rect = e.target.getBoundingClientRect();
   dd.style.top = (rect.bottom + window.scrollY + 4) + 'px';
@@ -1130,7 +1145,36 @@ function quickReassign(clientName, acct){
   renderTable();
   toast('הועבר ל-' + acct);
 }
-document.addEventListener('click', () => { document.getElementById('reDd').style.display='none'; });
+document.addEventListener('click', (e) => {
+  // Handle accountant tag click → open dropdown
+  const tag = e.target.closest('.acct-clk');
+  if(tag){
+    e.stopPropagation();
+    const absIdx = parseInt(tag.dataset.rowidx);
+    const curAcct = tag.dataset.acct || '';
+    const rows = getFilteredRows();
+    const row = rows[absIdx];
+    _reDdClient = row ? row[0] : null;
+    if(!_reDdClient) return;
+    const dd = document.getElementById('reDd');
+    const accts = getAccts();
+    dd.innerHTML = '<div style="font-size:11px;color:var(--gray);padding:4px 8px 8px;font-weight:600">בחרי מנח\"ש:</div>' +
+      accts.map(a => '<button class="redd-opt" data-acct="'+encodeURIComponent(a)+'">' + a + (a===curAcct?' ✓':'') + '</button>').join('');
+    dd.style.display = 'block';
+    const rect = tag.getBoundingClientRect();
+    dd.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+    dd.style.right = (window.innerWidth - rect.right) + 'px';
+    return;
+  }
+  // Handle reDd option click
+  const btn = e.target.closest('.redd-opt');
+  if(btn){
+    const acct = decodeURIComponent(btn.dataset.acct);
+    if(acct && _reDdClient) quickReassign(_reDdClient, acct);
+    return;
+  }
+  if(!e.target.closest('#reDd')) document.getElementById('reDd').style.display='none';
+});
 
 // ── Reassign modal ──
 function doReassign(){
@@ -1188,6 +1232,8 @@ function switchTab(t){
   curTab = t;
   document.getElementById('tabVat').className = 'sheet-tab' + (t==='vat'?' active':'');
   document.getElementById('tabSal').className = 'sheet-tab salary' + (t==='sal'?' active':'');
+  const sfEl=document.getElementById('sendFilt');
+  if(sfEl) sfEl.style.display=t==='vat'?'':'none';
   updateStats(); renderTable();
 }
 
