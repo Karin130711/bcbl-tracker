@@ -206,33 +206,58 @@ function toggleMasavFilt(f,btn){
   renderMasavTable();
 }
 
+function openAddMasavRow(){
+  document.getElementById('meIdx').value='-1';
+  document.getElementById('meName').value='';
+  document.getElementById('meName').readOnly=false;
+  document.getElementById('meName').style.background='';
+  document.getElementById('meBank').value='';
+  document.getElementById('meBranch').value='';
+  document.getElementById('meAccount').value='';
+  document.getElementById('meAmount').value='';
+  document.getElementById('masavEditModalTitle').textContent='➕ הוספת ספק ידנית';
+  document.getElementById('masavEditModal').style.display='flex';
+}
+
 function editMasavRow(idx){
   const s=masavData[idx];
   document.getElementById('meIdx').value=idx;
   document.getElementById('meName').value=s.name;
+  document.getElementById('meName').readOnly=true;
+  document.getElementById('meName').style.background='#F8FAFC';
   document.getElementById('meBank').value=s.bank||'';
   document.getElementById('meBranch').value=s.branch||'';
   document.getElementById('meAccount').value=s.account||'';
   document.getElementById('meAmount').value=s.amount||'';
+  document.getElementById('masavEditModalTitle').textContent='✏️ עריכת פרטי ספק';
   document.getElementById('masavEditModal').style.display='flex';
 }
 
 function saveMasavEdit(){
   const idx=parseInt(document.getElementById('meIdx').value);
+  const nameVal=document.getElementById('meName').value.trim();
   const bankVal=document.getElementById('meBank').value.trim();
   const brVal=document.getElementById('meBranch').value.trim().replace(/\D/g,'');
   const accVal=document.getElementById('meAccount').value.trim().replace(/\D/g,'');
   const amtVal=parseFloat(document.getElementById('meAmount').value)||0;
-  masavData[idx].bank=bankVal;
-  masavData[idx].branch=brVal;
-  masavData[idx].account=accVal;
-  masavData[idx].amount=amtVal;
-  masavData[idx].issues=[];
-  if(!bankVal) masavData[idx].issues.push('חסר מספר בנק');
-  if(!accVal) masavData[idx].issues.push('חסר מספר חשבון');
+  if(!nameVal){ toast('⚠️ נא להזין שם ספק'); return; }
+  if(!amtVal){ toast('⚠️ נא להזין סכום'); return; }
+  const issues=[];
+  if(!bankVal) issues.push('חסר מספר בנק');
+  if(!accVal) issues.push('חסר מספר חשבון');
+  if(idx===-1){
+    masavData.push({name:nameVal,bank:bankVal,branch:brVal,account:accVal,amount:amtVal,ref:'הוספה ידנית',merged:false,count:1,issues,_manual:true});
+    toast('✓ ספק נוסף בהצלחה');
+  } else {
+    masavData[idx].bank=bankVal;
+    masavData[idx].branch=brVal;
+    masavData[idx].account=accVal;
+    masavData[idx].amount=amtVal;
+    masavData[idx].issues=issues;
+    toast('✓ פרטי ספק עודכנו');
+  }
   document.getElementById('masavEditModal').style.display='none';
   applyValidations(); renderMasavStats(); renderMasavTable();
-  toast('✓ פרטי ספק עודכנו');
 }
 
 function renderMasavTable(){
@@ -853,6 +878,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <div id="masavValidation" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#991B1B"></div>
     <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
       <button class="btn primary" onclick="downloadMasav()">📥 הורדת קובץ מס"ב לבנק</button>
+      <button class="btn" onclick="openAddMasavRow()">➕ הוספת ספק ידנית</button>
       <button class="btn" onclick="document.getElementById('masavUploadArea').style.display='';document.getElementById('masavResults').style.display='none'">📂 טעינת קובץ חדש</button>
       <span style="margin-right:auto;font-size:12px;color:var(--text3)" id="masavFileName"></span>
     </div>
@@ -885,9 +911,9 @@ tbody td:first-child{padding-right:10px;text-align:right}
 <!-- Masav Edit Modal -->
 <div id="masavEditModal" style="display:none;position:fixed;inset:0;background:rgba(30,41,59,.5);z-index:600;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:28px;width:460px;box-shadow:0 20px 60px rgba(0,0,0,.2)">
-    <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:20px">✏️ עריכת פרטי ספק</div>
+    <div id="masavEditModalTitle" style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:20px">✏️ עריכת פרטי ספק</div>
     <input type="hidden" id="meIdx">
-    <div class="form-row"><label>שם ספק</label><input id="meName" class="cp-input" readonly style="background:#F8FAFC;color:var(--text2)"></div>
+    <div class="form-row"><label>שם ספק</label><input id="meName" class="cp-input" placeholder="שם הספק"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
       <div class="form-row" style="margin:0">
         <label>קוד בנק</label>
