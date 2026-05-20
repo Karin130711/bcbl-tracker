@@ -5,6 +5,316 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>בן חיים בר לב רואי חשבון | מעקב שוטף</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ══════════════════════════════════════════
+// MASAV MODULE
+// ══════════════════════════════════════════
+const BANK_NAMES = {"10": "לאומי", "12": "פועלים", "11": "דיסקונט", "20": "מזרחי", "31": "בינלאומי", "46": "מסד", "52": "פאגי", "04": "יהב", "54": "ירושלים", "13": "איגוד", "14": "אוצר", "17": "מרכנתיל"};
+let masavData = [];
+let masavFilt = new Set(['all']);
+let masavSender = { bankCode: '031', branch: '', account: '', name: '' };
+
+
+// Pre-parsed supplier data (from last uploaded file)
+const PRELOADED_MASAV = [{"name": "אהוד מנור", "amount": 1250.0, "bank": "46", "branch": "527", "account": "91278", "ref": "4528 - דרישת תשלום", "merged": false, "original_count": 1, "issues": []}, {"name": "רמי רחמים בע\"מ", "amount": 2500.0, "bank": "10", "branch": "978", "account": "7440094", "ref": "4535 חשבונית מס 65392", "merged": false, "original_count": 1, "issues": []}, {"name": "Fattal Workspace", "amount": 2832.0, "bank": "12", "branch": "600", "account": "425049", "ref": "4535 חשבונית מס 264004404", "merged": false, "original_count": 1, "issues": []}, {"name": "מסעדת צ'ומה", "amount": 5256.0, "bank": "20", "branch": "421", "account": "455566", "ref": "4516 חשבונית מס 1746", "merged": true, "original_count": 4, "issues": []}, {"name": "עופר רץ", "amount": 46.0, "bank": "11", "branch": "59", "account": "5235253", "ref": "4516 חשבונית מס קבלה 02434454", "merged": false, "original_count": 1, "issues": []}, {"name": "חי בזק", "amount": 103.0, "bank": "10", "branch": "65", "account": "285552", "ref": "4514 חשבון עסקה 2466653", "merged": false, "original_count": 1, "issues": []}, {"name": "בצלאל גרינברג", "amount": 1200.0, "bank": "10", "branch": "998", "account": "15222466", "ref": "nan", "merged": false, "original_count": 1, "issues": []}, {"name": "ישיבת הר ברכה", "amount": 1250.0, "bank": "52", "branch": null, "account": "729655", "ref": "4314 חשבון עסקה 1120063680", "merged": false, "original_count": 1, "issues": []}, {"name": "עשהאל אבלמן", "amount": 2000.0, "bank": "20", "branch": "454", "account": "107040", "ref": "4314 - חשבון עסקה 40001", "merged": false, "original_count": 1, "issues": []}, {"name": "אריה קצוביץ", "amount": 1500.0, "bank": "12", "branch": "782", "account": "071511", "ref": "4314 דרישת תשלום", "merged": false, "original_count": 1, "issues": []}, {"name": "מירב בועז", "amount": 10290.0, "bank": "20", "branch": "402", "account": "364905", "ref": "4314 דרישת תשלום", "merged": false, "original_count": 1, "issues": []}, {"name": "מותר. בע\"מ", "amount": 2950.0, "bank": "10", "branch": "29", "account": "237426", "ref": "4314 חשבונית מס קבלה 53", "merged": false, "original_count": 1, "issues": []}, {"name": "דרור אידר", "amount": 2950.0, "bank": "10", "branch": "930", "account": "6331969", "ref": "4314 - חשבונית מס 1141", "merged": false, "original_count": 1, "issues": []}, {"name": "הילי בן חמו", "amount": 372.0, "bank": "14", "branch": "315", "account": "115807", "ref": "4303 חשבונית מס 312031960", "merged": true, "original_count": 2, "issues": []}, {"name": "איי 2 זי מזון בע\"מ", "amount": 560.0, "bank": "14", "branch": "369", "account": "452607", "ref": "4303 חשבונית מס 26101600", "merged": false, "original_count": 1, "issues": []}, {"name": "קפה מוזאון", "amount": 1180.0, "bank": "12", "branch": "520", "account": "256575", "ref": "4303 חשבונית מס 108", "merged": false, "original_count": 1, "issues": []}, {"name": "ליאת נטוביץ קושיצקי", "amount": 954.0, "bank": "11", "branch": "109", "account": "73276911", "ref": "4303 חשבונית מס קבלה 032573", "merged": false, "original_count": 1, "issues": []}, {"name": "קבוצת עזריאלי", "amount": 106.0, "bank": "10", "branch": null, "account": "05710051", "ref": "4303 - חשבונית  מס 201043", "merged": false, "original_count": 1, "issues": []}, {"name": "ישראבוס אלעד מלמד", "amount": 800.0, "bank": "14", "branch": "343", "account": "253089", "ref": "4308 - חשבון עסקה 7116", "merged": false, "original_count": 1, "issues": []}, {"name": "מוניות בית הכרם", "amount": 354.0, "bank": "12", "branch": "520", "account": "374253", "ref": "4326 - חשבונית מס 2280", "merged": true, "original_count": 2, "issues": []}, {"name": "רוז הפצות", "amount": 6090.0, "bank": "10", "branch": "901", "account": "29680062", "ref": "4312 - חשבונית מס 132610229", "merged": false, "original_count": 1, "issues": []}, {"name": "אלונה סדובסקי", "amount": 208.0, "bank": "10", "branch": "902", "account": "5930489", "ref": "4312 חשבונית מס קבלה 743900574", "merged": true, "original_count": 2, "issues": []}, {"name": "גרפציק", "amount": 1377.0, "bank": "52", "branch": "175", "account": "475742", "ref": "4313 - מס הזמנה 336655", "merged": false, "original_count": 1, "issues": []}, {"name": "נילי אסטרטגיה", "amount": 2000.0, "bank": null, "branch": "522", "account": "658776", "ref": "חשבונית עסקה 4052", "merged": false, "original_count": 1, "issues": []}, {"name": "אלעד אל עיר דוד", "amount": 4032.0, "bank": "10", "branch": "901", "account": "70980066", "ref": "4318 חשבון לתשלום  IN264001074", "merged": false, "original_count": 1, "issues": []}, {"name": "מגדל דוד", "amount": 2060.0, "bank": "10", "branch": "901", "account": "31260031", "ref": "4318 חשבון עסקה 3270", "merged": false, "original_count": 1, "issues": []}, {"name": "שגיב ליכטמן", "amount": 11759.0, "bank": "12", "branch": "686", "account": "641884", "ref": "4700 חשבון עסקה 40017", "merged": true, "original_count": 3, "issues": []}, {"name": "קבב נבט", "amount": 1695.0, "bank": "12", "branch": "631", "account": "319315", "ref": "nan", "merged": false, "original_count": 1, "issues": []}, {"name": "קבב נבט", "amount": 1625.0, "bank": null, "branch": null, "account": null, "ref": "nan", "notes": "nan", "merged": false, "issues": ["חסרים פרטי בנק"]}, {"name": "חיים בר לב", "amount": 3803.0, "bank": null, "branch": null, "account": null, "ref": "nan", "notes": "nan", "merged": false, "issues": ["חסרים פרטי בנק"]}, {"name": "יוני שטרן", "amount": 2242.0, "bank": "11", "branch": "107", "account": "72320062", "ref": "4729 - חשבון עסקה 941", "merged": false, "original_count": 1, "issues": []}, {"name": "המכללה לחינוך ליפשץ", "amount": 7700.0, "bank": "20", "branch": "401", "account": "553838", "ref": "nan", "merged": false, "original_count": 1, "issues": []}, {"name": "בסט קאר", "amount": 3950.0, "bank": "12", "branch": "782", "account": "183184", "ref": "1125 חשבונית מס 288784", "merged": false, "original_count": 1, "issues": []}, {"name": "אלירן אוחיון", "amount": 10503.0, "bank": "20", "branch": "426", "account": "314667", "ref": "5402 חשבונית מס קבלה 6900004632", "merged": true, "original_count": 9, "issues": []}, {"name": "אביגיל אפרתי", "amount": 8958.0, "bank": "11", "branch": "159", "account": "11633745", "ref": "5402 חשבונית מס קבלה 10064034", "merged": true, "original_count": 5, "issues": []}, {"name": "קייק & מור - עלומים", "amount": 1067.0, "bank": "20", "branch": "427", "account": "518973", "ref": "5405 חשבונית מס 20236", "merged": false, "original_count": 1, "issues": []}, {"name": "סדנא לידע ציבורי", "amount": 2500.0, "bank": "26", "branch": "262", "account": "419931", "ref": "5403 דרישת תשלום 260402", "merged": false, "original_count": 1, "issues": []}, {"name": "ביץ טי אל וי תיירות בע\"מ", "amount": 16781.0, "bank": "11", "branch": "147", "account": "213579458", "ref": "5410 חשבונית מס 7334 , 7333", "merged": true, "original_count": 2, "issues": []}, {"name": "פרסום תבור בע\"מ", "amount": 6313.0, "bank": "12", "branch": "391", "account": "251007", "ref": "4914 חשבונית מס 93338", "merged": false, "original_count": 1, "issues": []}, {"name": "בניארט בע\"מ", "amount": 23600.0, "bank": "11", "branch": "43", "account": "136275", "ref": "4914 - חשבונית מס 701013", "merged": false, "original_count": 1, "issues": []}];
+
+function updateMasavSender(field, val){ masavSender[field] = val; }
+
+function runMasav(){
+  const input = document.getElementById('masavFile');
+  const status = document.getElementById('masavStatus');
+  if(!input.files || !input.files[0]){ status.innerHTML = '⚠️ נא לבחור קובץ Excel תחילה'; return; }
+  if(!masavSender.branch || !masavSender.account){ status.innerHTML = '⚠️ נא למלא פרטי חשבון משלם (סניף + חשבון)'; return; }
+  processMasavFile(input.files[0]);
+}
+
+function onMasavSelected(el){
+  const f = el.files ? el.files[0] : (el.target ? el.target.files[0] : null);
+  if(!f) return;
+  document.getElementById('masavStatus').textContent = '⏳ מעבד: ' + f.name;
+  processMasavFile(f);
+}
+function onMasavDrop(e){
+  const f = e.dataTransfer.files[0];
+  if(!f || !f.name.match(/\.xlsx?$/i)){ toast('⚠️ נא לגרור קובץ Excel בלבד'); return; }
+  processMasavFile(f);
+}
+function handleMasavDrop(e){ onMasavDrop(e); }
+function handleMasavFile(input){ onMasavSelected({target:input}); }
+
+async function processMasavFile(file){
+  const status = document.getElementById('masavStatus');
+  document.getElementById('masavFileName').textContent = file.name;
+  status.innerHTML = '⏳ טוען ספריית Excel...';
+  if(!window.XLSX){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      s.onload=res; s.onerror=()=>rej(new Error('לא ניתן לטעון ספריית Excel'));
+      document.head.appendChild(s);
+    }).catch(e=>{ status.innerHTML='❌ '+e.message; return; });
+  }
+  try{
+    status.innerHTML = '⏳ קורא קובץ...';
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    // Try "רשימת מסב" first, then scan all sheets
+    let rows = null;
+    const preferred = wb.SheetNames.find(n => n.includes('מסב') || n.includes('ספק') || n.includes('תשלום'));
+    const sheetName = preferred || wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    status.innerHTML = '⏳ מנתח נתונים...';
+    parseMasavRows(rows);
+  } catch(e){
+    status.innerHTML = '❌ שגיאה: ' + e.message;
+  }
+}
+
+function parseBankDetails(notes){
+  const m={'פועלים':'12','לאומי':'10','דיסקונט':'11','מזרחי':'20','בינלאומי':'31',
+             'מסד':'46','פאגי':'52','פאג':'52','יהב':'04','ירושלים':'54','איגוד':'13','אוצר':'14','מרכנתיל':'17'};
+  let bank=null,branch=null,account=null;
+  const s = String(notes||'');
+  for(const [n,v] of Object.entries(m)){ if(s.includes(n)){ bank=v; break; } }
+  const m1=s.match(/\((\d{2,3})\)/); if(m1) bank=m1[1].padStart(2,'0');
+  const m2=s.match(/סניף\s*[:\s]+(\d+)/); if(m2) branch=m2[1].replace(/^0+/,'')||'0';
+  const m3=s.match(/חשבון\s*[:\s]+([\d]+)/); if(m3) account=m3[1];
+  // fallback: plain number string "BANK BRANCH ACCOUNT"
+  if(!account){ const m4=s.match(/^\s*(\d{1,2})\s+(\d{2,4})\s+([\d\/]+)\s*$/); if(m4){ bank=m4[1].padStart(2,'0'); branch=m4[2]; account=m4[3].replace(/\//g,''); } }
+  return {bank,branch,account};
+}
+
+function parseMasavRows(rows){
+  const skip = new Set(['שם הספק','קופה קטנה','החזר הוצאות','שולם בהעברה בנקאית','','0','שם']);
+  const suppliers = [];
+  // Auto-detect column indices by scanning header row
+  let nameCol=0, amtCol=4, bankCol=8, refCol=9;
+  for(let r=0;r<Math.min(5,rows.length);r++){
+    const row=rows[r];
+    for(let c=0;c<row.length;c++){
+      const v=String(row[c]||'').trim();
+      if(v.includes('שם הספק')||v==='שם') nameCol=c;
+      if(v==='סה"כ'||v==='סכום'||v.includes('סה"כ')) amtCol=c;
+      if(v.includes('הערות')||v.includes('פרטי בנק')||v.includes('בנק')) bankCol=c;
+      if(v.includes('אסמכתא')||v.includes('קישור')||v.includes('חשבונית')) refCol=c;
+    }
+  }
+  for(const row of rows){
+    const name = String(row[nameCol]||'').trim();
+    if(skip.has(name)||!name||name.length<2) continue;
+    const raw = parseFloat(String(row[amtCol]||'').replace(/[,₪]/g,''));
+    if(isNaN(raw)||raw<=0) continue;
+    // Search all cells in row for bank details
+    let bankInfo = {bank:null,branch:null,account:null};
+    for(let c=0;c<row.length;c++){
+      const cell = String(row[c]||'');
+      if(cell.includes('סניף')||cell.includes('חשבון')||cell.includes('בנק')||/\d{5,}/.test(cell)){
+        const b = parseBankDetails(cell);
+        if(b.account){ bankInfo=b; break; }
+      }
+    }
+    const ref = String(row[refCol]||row[refCol+1]||'').trim();
+    suppliers.push({name, amount:raw, ...bankInfo, ref});
+  }
+  // Merge by bank account
+  const byKey = {};
+  for(const s of suppliers){
+    const key = s.bank&&s.account ? `${s.bank}-${s.branch}-${s.account}` : 'x_'+Math.random();
+    if(!byKey[key]) byKey[key]=[];
+    byKey[key].push(s);
+  }
+  masavData = Object.entries(byKey).map(([k,rows])=>{
+    const amt = rows.reduce((a,b)=>a+b.amount,0);
+    const names = [...new Set(rows.map(r=>r.name))];
+    const issues = [];
+    if(!rows[0].bank) issues.push('חסר מספר בנק');
+    if(!rows[0].account) issues.push('חסר מספר חשבון');
+    return {name:names.join(' / '),amount:amt,bank:rows[0].bank,branch:rows[0].branch,
+             account:rows[0].account,ref:rows[0].ref,merged:rows.length>1,count:rows.length,issues};
+  });
+  if(!masavData.length){ document.getElementById('masavStatus').innerHTML='⚠️ לא נמצאו נתוני ספקים בקובץ'; return; }
+  document.getElementById('masavUploadArea').style.display='none';
+  document.getElementById('masavResults').style.display='';
+  renderMasavStats(); renderMasavTable();
+  toast('✓ נטענו '+masavData.length+' ספקים');
+}
+
+function parseBankDetails(notes){
+  const m={'פועלים':'12','לאומי':'10','דיסקונט':'11','מזרחי':'20','בינלאומי':'31',
+             'מסד':'46','פאגי':'52','פאג':'52','יהב':'04','ירושלים':'54','איגוד':'13','אוצר':'14'};
+  let bank=null,branch=null,account=null;
+  for(const [n,v] of Object.entries(m)){ if(notes.includes(n)){ bank=v; break; } }
+  const m1=notes.match(/\((\d{2})\)/); if(m1) bank=m1[1];
+  const m2=notes.match(/סניף\s*[:\s]*(\d+)/); if(m2) branch=m2[1].replace(/^0+/,'')||'0';
+  const m3=notes.match(/חשבון\s*[:\s]*([\d\/\-]+)/); if(m3) account=m3[1].replace(/[\/\-]/g,'');
+  return {bank,branch,account};
+}
+
+function validateBankAccount(bank, branch, account){
+  const warnings = [];
+  if(!account) return ['חסר מספר חשבון'];
+  if(!bank) warnings.push('חסר קוד בנק');
+  const acc = String(account).replace(/\D/g,'');
+  const br = String(branch||'').replace(/\D/g,'');
+  if(acc.length < 4) warnings.push('מספר חשבון קצר מדי (פחות מ-4 ספרות)');
+  if(acc.length > 10) warnings.push('מספר חשבון ארוך מדי (מעל 10 ספרות)');
+  if(br && br.length > 4) warnings.push('מספר סניף חשוד (מעל 4 ספרות)');
+  return warnings;
+}
+
+function renderMasavStats(){
+  const total=masavData.reduce((a,b)=>a+b.amount,0);
+  const issues=masavData.filter(s=>s.issues.length>0).length;
+  const merged=masavData.filter(s=>s.merged).length;
+  const warnings=masavData.filter(s=>s._warnings&&s._warnings.length>0).length;
+  document.getElementById('masavStats').innerHTML=`
+    <div class="stat c-blue"><div class="stat-n">${masavData.length}</div><div class="stat-l">סה"כ ספקים</div></div>
+    <div class="stat c-green"><div class="stat-n" style="font-size:16px">₪${total.toLocaleString('he-IL',{minimumFractionDigits:2})}</div><div class="stat-l">💰 סה"כ מס"ב לתשלום</div></div>
+    <div class="stat c-warn"><div class="stat-n">${merged}</div><div class="stat-l">🔀 אוחדו</div></div>
+    <div class="stat c-red"><div class="stat-n">${issues+warnings}</div><div class="stat-l">⚠️ דורשים בדיקה</div></div>`;
+  // Validation panel
+  const dupes = findDuplicateAccounts();
+  const panel = document.getElementById('masavValidation');
+  const allIssues = [];
+  if(issues) allIssues.push(`❌ ${issues} ספקים עם פרטי בנק חסרים`);
+  if(dupes.length) allIssues.push(`⚠️ ${dupes.length} חשבונות כפולים: ${dupes.join(', ')}`);
+  const acWarnings = masavData.filter(s=>s._warnings&&s._warnings.length).map(s=>`⚠️ ${s.name}: ${s._warnings.join(', ')}`);
+  if(acWarnings.length) allIssues.push(...acWarnings);
+  panel.style.display = allIssues.length ? '' : 'none';
+  panel.innerHTML = allIssues.length ?
+    `<div style="font-weight:700;margin-bottom:8px;font-size:13px">🔍 בקרות מס"ב</div>`+allIssues.map(i=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #FEE2E2">${i}</div>`).join('') : '';
+}
+
+function findDuplicateAccounts(){
+  const seen={}, dupes=[];
+  masavData.forEach(s=>{ if(!s.account) return; const k=s.account; if(seen[k]&&seen[k]!==s.name) dupes.push(s.account+' ('+s.name+' / '+seen[k]+')'); else seen[k]=s.name; });
+  return dupes;
+}
+
+function applyValidations(){
+  masavData.forEach(s=>{ s._warnings = validateBankAccount(s.bank, s.branch, s.account).filter(w=>w.includes('ספרת ביקורת')); });
+}
+
+function toggleMasavFilt(f,btn){
+  if(f==='all'){masavFilt=new Set(['all']);document.querySelectorAll('[data-mfilt]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+  else{
+    masavFilt.delete('all');document.querySelector('[data-mfilt="all"]').classList.remove('on');
+    if(masavFilt.has(f)){masavFilt.delete(f);btn.classList.remove('on');if(!masavFilt.size){masavFilt.add('all');document.querySelector('[data-mfilt="all"]').classList.add('on');}}
+    else{masavFilt.add(f);btn.classList.add('on');}
+  }
+  renderMasavTable();
+}
+
+function openAddMasavRow(){
+  document.getElementById('meIdx').value='-1';
+  document.getElementById('meName').value='';
+  document.getElementById('meName').readOnly=false;
+  document.getElementById('meName').style.background='';
+  document.getElementById('meBank').value='';
+  document.getElementById('meBranch').value='';
+  document.getElementById('meAccount').value='';
+  document.getElementById('meAmount').value='';
+  document.getElementById('masavEditModalTitle').textContent='➕ הוספת ספק ידנית';
+  document.getElementById('masavEditModal').style.display='flex';
+}
+
+function editMasavRow(idx){
+  const s=masavData[idx];
+  document.getElementById('meIdx').value=idx;
+  document.getElementById('meName').value=s.name;
+  document.getElementById('meName').readOnly=true;
+  document.getElementById('meName').style.background='#F8FAFC';
+  document.getElementById('meBank').value=s.bank||'';
+  document.getElementById('meBranch').value=s.branch||'';
+  document.getElementById('meAccount').value=s.account||'';
+  document.getElementById('meAmount').value=s.amount||'';
+  document.getElementById('masavEditModalTitle').textContent='✏️ עריכת פרטי ספק';
+  document.getElementById('masavEditModal').style.display='flex';
+}
+
+function saveMasavEdit(){
+  const idx=parseInt(document.getElementById('meIdx').value);
+  const nameVal=document.getElementById('meName').value.trim();
+  const bankVal=document.getElementById('meBank').value.trim();
+  const brVal=document.getElementById('meBranch').value.trim().replace(/\D/g,'');
+  const accVal=document.getElementById('meAccount').value.trim().replace(/\D/g,'');
+  const amtVal=parseFloat(document.getElementById('meAmount').value)||0;
+  if(!nameVal){ toast('⚠️ נא להזין שם ספק'); return; }
+  if(!amtVal){ toast('⚠️ נא להזין סכום'); return; }
+  const issues=[];
+  if(!bankVal) issues.push('חסר מספר בנק');
+  if(!accVal) issues.push('חסר מספר חשבון');
+  if(idx===-1){
+    masavData.push({name:nameVal,bank:bankVal,branch:brVal,account:accVal,amount:amtVal,ref:'הוספה ידנית',merged:false,count:1,issues,_manual:true});
+    toast('✓ ספק נוסף בהצלחה');
+  } else {
+    masavData[idx].bank=bankVal;
+    masavData[idx].branch=brVal;
+    masavData[idx].account=accVal;
+    masavData[idx].amount=amtVal;
+    masavData[idx].issues=issues;
+    toast('✓ פרטי ספק עודכנו');
+  }
+  document.getElementById('masavEditModal').style.display='none';
+  applyValidations(); renderMasavStats(); renderMasavTable();
+}
+
+function renderMasavTable(){
+  applyValidations();
+  const srch=(document.getElementById('masavSrch')?.value||'').toLowerCase();
+  const filtered=masavData.map((s,i)=>({...s,_idx:i})).filter(s=>{
+    if(srch&&!s.name.toLowerCase().includes(srch)) return false;
+    if(masavFilt.has('all')) return true;
+    if(masavFilt.has('issues')&&(s.issues.length>0||(s._warnings&&s._warnings.length>0))) return true;
+    if(masavFilt.has('merged')&&s.merged) return true;
+    if(masavFilt.has('ok')&&s.issues.length===0&&!(s._warnings&&s._warnings.length)) return true;
+    return false;
+  });
+  document.getElementById('masavTbody').innerHTML=filtered.map(s=>{
+    const bankLbl=s.bank?(BANK_NAMES[s.bank]||'בנק '+s.bank):'—';
+    const amt=s.amount.toLocaleString('he-IL',{minimumFractionDigits:2});
+    const hasWarn=s._warnings&&s._warnings.length>0;
+    const badge=s.issues.length?
+      `<span style="background:#FEF2F2;color:#DC2626;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px">❌ ${s.issues.join(', ')}</span>`:
+      hasWarn?`<span style="background:#FFFBEB;color:#D97706;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px">⚠️ ${s._warnings[0]}</span>`:
+      s.merged?`<span style="background:#EDE9FE;color:#6D28D9;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px">🔀 אוחד (${s.count})</span>`:
+      `<span style="background:#F0FDF4;color:#16A34A;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px">✓ תקין</span>`;
+    return `<tr style="${s.issues.length?'background:#FEF9F9':hasWarn?'background:#FFFDF0':''}">
+      <td style="text-align:right;padding:6px 12px"><div class="nm">${s.name}</div></td>
+      <td style="text-align:center;font-size:12px">${bankLbl}</td>
+      <td style="text-align:center;font-size:12px">${s.branch||'—'}</td>
+      <td style="text-align:center;font-size:11px;font-family:monospace">${s.account||'—'}</td>
+      <td style="text-align:center;font-size:13px;font-weight:700;color:var(--accent)">₪${amt}</td>
+      <td style="text-align:center">${badge}</td>
+      <td style="text-align:right;padding-right:8px;font-size:10px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.ref||''}</td>
+      <td style="text-align:center;padding:4px 8px">
+        <button onclick="editMasavRow(${s._idx})" style="padding:3px 10px;font-size:11px;font-family:Heebo,sans-serif;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;color:var(--accent);cursor:pointer;font-weight:600">✏️ ערוך</button>
+      </td>
+    </tr>`;
+  }).join('');
+  const visTotal=filtered.reduce((a,b)=>a+b.amount,0);
+  document.getElementById('masavPg').innerHTML='<span style="font-size:11px;color:var(--text3)">'+filtered.length+' ספקים | סה"כ מוצג: <b>₪'+visTotal.toLocaleString('he-IL',{minimumFractionDigits:2})+'</b></span>';
+}
+
+function downloadMasav(){
+  const valid=masavData.filter(s=>s.bank&&s.account);
+  if(!valid.length){toast('⚠️ אין שורות תקינות');return;}
+  function pad(v,l,c='0',r=false){const s=String(v||'').slice(0,l);return r?s.padEnd(l,c):s.padStart(l,c);}
+  const today=new Date();
+  const dd=String(today.getDate()).padStart(2,'0'),mm=String(today.getMonth()+1).padStart(2,'0'),yyyy=String(today.getFullYear()),yy=yyyy.slice(2);
+  const dt8=dd+mm+yyyy; const dt6=dd+mm+yy;
+  let h='1';h+=pad(masavSender.bankCode||'031',3);h+=pad(masavSender.branch,3);h+=pad(masavSender.account,9);h+=dt8;h+=pad('000001',6);h+=' '.repeat(Math.max(0,80-h.length));
+  let lines=[h.slice(0,80)];
+  let tot=0;
+  valid.forEach((s,i)=>{ const ag=Math.round(s.amount*100);tot+=ag; let r='2';r+=pad(s.bank,3);r+=pad(s.branch||'0',3);r+=pad(s.account,9);r+=pad(ag,10);r+=pad(i+1,10);r+=pad('',16,' ',true);r+=' '.repeat(Math.max(0,80-r.length));lines.push(r.slice(0,80)); });
+  let t='9';t+=pad(tot,10);t+=pad(valid.length,6);t+=' '.repeat(Math.max(0,80-t.length));lines.push(t.slice(0,80));
+  const blob=new Blob([lines.join('\r\n')],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='masav_'+dt6+'.txt';a.click();URL.revokeObjectURL(a.href);
+  toast('✓ מס"ב הורד — '+valid.length+' תשלומים, ₪'+valid.reduce((a,b)=>a+b.amount,0).toLocaleString('he-IL'));
+}
+
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -259,6 +569,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <div class="main-tab active" id="mainTabMonthly" onclick="switchMainTab('monthly')">📅 חודש שוטף</div>
     <div class="main-tab" id="mainTabClose" onclick="switchMainTab('close')">📊 סגירות שנתיות</div>
     <div class="main-tab" id="mainTabClients" onclick="switchMainTab('clients')">👥 לקוחות</div>
+    <div class="main-tab" id="mainTabMasav" onclick="switchMainTab('masav')">🏦 מס&quot;ב ספקים</div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;padding:0 16px 0 0">
     <span id="syncIndicator" style="display:flex;align-items:center;font-size:11px;color:var(--text3)">
@@ -520,6 +831,106 @@ tbody td:first-child{padding-right:10px;text-align:right}
     </table>
   </div>
 </div>
+<!-- MASAV TAB -->
+<div id="mainMasav" style="display:none;padding:16px">
+  <div id="masavUploadArea" style="background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:28px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)">
+    <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:16px">🏦 פרטי חשבון המשלם</div>
+    <div style="display:grid;grid-template-columns:120px 140px 200px 1fr;gap:12px;margin-bottom:24px;align-items:start">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px">קוד בנק</div>
+        <input id="msBankCode" value="031" oninput="updateMasavSender('bankCode',this.value)"
+          style="width:100%;padding:8px 10px;border:1px solid #CBD5E1;border-radius:8px;font-family:Heebo,sans-serif;font-size:13px;outline:none;box-sizing:border-box">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">בינלאומי=031</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px">סניף *</div>
+        <input id="msBranch" placeholder="מספר סניף" oninput="updateMasavSender('branch',this.value)"
+          style="width:100%;padding:8px 10px;border:1px solid #CBD5E1;border-radius:8px;font-family:Heebo,sans-serif;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px">מספר חשבון *</div>
+        <input id="msAccount" placeholder="חשבון" oninput="updateMasavSender('account',this.value)"
+          style="width:100%;padding:8px 10px;border:1px solid #CBD5E1;border-radius:8px;font-family:Heebo,sans-serif;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px">שם לקוח</div>
+        <input id="msName" placeholder="שם העסק המשלם" oninput="updateMasavSender('name',this.value)"
+          style="width:100%;padding:8px 10px;border:1px solid #CBD5E1;border-radius:8px;font-family:Heebo,sans-serif;font-size:13px;outline:none;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="border-top:1px solid #E2E8F0;padding-top:22px">
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px">📊 העלאת קובץ ספקים</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px">קורא גיליון "רשימת מסב" · מזהה פרטי בנק אוטומטית · מאחד ספקים כפולים</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <input type="file" id="masavFile" accept=".xlsx,.xls"
+          style="font-size:13px;font-family:Heebo,sans-serif;padding:8px 12px;border:2px solid #CBD5E1;border-radius:8px;cursor:pointer;background:#F8FAFC;color:var(--text)">
+        <button id="masavRunBtn" onclick="runMasav()"
+          style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 28px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(37,99,235,.3)">
+          ⚙️ הכן קובץ מס"ב
+        </button>
+      </div>
+      <div id="masavStatus" style="margin-top:14px;font-size:13px;color:var(--text2)"></div>
+    </div>
+  </div>
+  <div id="masavResults" style="display:none">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px" id="masavStats"></div>
+    <!-- Validation panel -->
+    <div id="masavValidation" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:#991B1B"></div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" onclick="downloadMasav()">📥 הורדת קובץ מס"ב לבנק</button>
+      <button class="btn" onclick="openAddMasavRow()">➕ הוספת ספק ידנית</button>
+      <button class="btn" onclick="document.getElementById('masavUploadArea').style.display='';document.getElementById('masavResults').style.display='none'">📂 טעינת קובץ חדש</button>
+      <span style="margin-right:auto;font-size:12px;color:var(--text3)" id="masavFileName"></span>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="flt on" data-mfilt="all" onclick="toggleMasavFilt('all',this)">הכל</button>
+      <button class="flt" data-mfilt="ok" onclick="toggleMasavFilt('ok',this)">✅ תקין</button>
+      <button class="flt" data-mfilt="merged" onclick="toggleMasavFilt('merged',this)">🔀 אוחד</button>
+      <button class="flt" data-mfilt="issues" onclick="toggleMasavFilt('issues',this)">⚠️ דורשים בדיקה</button>
+      <input class="srch" id="masavSrch" type="text" placeholder="🔍 חיפוש ספק..." oninput="renderMasavTable()" style="margin-right:auto;width:200px">
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th style="text-align:right;padding-right:12px">שם ספק</th>
+          <th style="width:80px;text-align:center;font-size:10px">בנק</th>
+          <th style="width:60px;text-align:center;font-size:10px">סניף</th>
+          <th style="width:100px;text-align:center;font-size:10px">חשבון</th>
+          <th style="width:100px;text-align:center;font-size:10px">סכום ₪</th>
+          <th style="width:90px;text-align:center;font-size:10px">סטטוס</th>
+          <th style="text-align:right;font-size:10px;padding-right:8px">אסמכתא</th>
+          <th style="width:70px;text-align:center;font-size:10px">עריכה</th>
+        </tr></thead>
+        <tbody id="masavTbody"></tbody>
+      </table>
+      <div class="pg" id="masavPg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Masav Edit Modal -->
+<div id="masavEditModal" style="display:none;position:fixed;inset:0;background:rgba(30,41,59,.5);z-index:600;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:28px;width:460px;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+    <div id="masavEditModalTitle" style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:20px">✏️ עריכת פרטי ספק</div>
+    <input type="hidden" id="meIdx">
+    <div class="form-row"><label>שם ספק</label><input id="meName" class="cp-input" placeholder="שם הספק"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="form-row" style="margin:0">
+        <label>קוד בנק</label>
+        <input id="meBank" class="cp-input" placeholder="למשל: 10">
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">10=לאומי 12=פועלים 11=דיסקונט 20=מזרחי 31=בינלאומי 46=מסד</div>
+      </div>
+      <div class="form-row" style="margin:0"><label>סניף</label><input id="meBranch" class="cp-input" placeholder="מספר סניף"></div>
+      <div class="form-row" style="margin:0"><label>חשבון</label><input id="meAccount" class="cp-input" placeholder="מספר חשבון"></div>
+    </div>
+    <div class="form-row"><label>סכום לתשלום ₪</label><input id="meAmount" class="cp-input" type="number" step="0.01"></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button onclick="saveMasavEdit()" style="flex:1;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;font-weight:700;cursor:pointer">שמור ✓</button>
+      <button onclick="document.getElementById('masavEditModal').style.display='none'" style="padding:11px 20px;background:#F1F5F9;color:var(--text2);border:none;border-radius:8px;font-family:Heebo,sans-serif;font-size:14px;cursor:pointer">ביטול</button>
+    </div>
+  </div>
+</div>
+
 
 
 <!-- File Notes Modal -->
@@ -886,25 +1297,6 @@ function getRawRows(){
   });
   return base;
 }
-function getVatAcct(month, clientName){
-  const vatRows=(DATA[month]?.v)||[];
-  const name = (clientName||'').trim();
-  // 1. Exact match
-  let vatRow = vatRows.find(r=>(r[0]||'').trim()===name);
-  // 2. Partial match: VAT name is contained in salary name or vice versa
-  if(!vatRow){
-    vatRow = vatRows.find(r=>{
-      const vn = (r[0]||'').trim();
-      return vn.length > 3 && (name.startsWith(vn) || vn.startsWith(name));
-    });
-  }
-  if(vatRow){
-    const vn = (vatRow[0]||'').trim();
-    return (getAssignments()[month]||{})[vn] || (getAssignments()[month]||{})[name] || vatRow[2]||'';
-  }
-  return '';
-}
-
 function getFilteredRows(){
   const raw = getRawRows();
   const acctF = document.getElementById('acctFilt').value.trim();
@@ -912,7 +1304,7 @@ function getFilteredRows(){
   const sendF = sendFiltEl ? sendFiltEl.value.trim() : '';
   const srch = (document.getElementById('srch').value||'').toLowerCase();
   return raw.filter(row => {
-    const acct = curTab==='sal' ? (getVatAcct(curMonth, row[0])||getClientAcct(curMonth, row)) : getClientAcct(curMonth, row);
+    const acct = getClientAcct(curMonth, row);
     if(acctF && acct !== acctF) return false;
     if(sendF){
       const cd = getClientData(row[0]);
@@ -984,7 +1376,7 @@ function _renderTable(){
   const page = rows.slice(start, start+PAGE);
 
   // Header
-  document.getElementById('thead').innerHTML = curTab === 'vat' ? `<tr>
+  document.getElementById('thead').innerHTML = `<tr>
     <th style="text-align:right;padding-right:12px">שם לקוח</th>
     <th style="width:90px;text-align:center;font-size:11px">בטיפול מנהלת<br>החשבונות</th>
     <th style="width:80px;text-align:center;font-size:11px">📱 שליחה</th>
@@ -999,14 +1391,11 @@ function _renderTable(){
     <th style="width:58px;text-align:center;font-size:11px">⚙️ קליטת<br>מעמ</th>
     <th style="width:46px;text-align:center;font-size:11px">📝 הערות<br>תיק</th>
     <th style="width:62px;text-align:center;font-size:11px">🧾 חשבוניות<br>חסרות</th>
-  </tr>` : `<tr>
-    <th style="text-align:right;padding-right:12px">שם לקוח</th>
-    <th style="width:90px;text-align:center;font-size:11px">בטיפול חשבת<br>השכר</th>
   </tr>`;
 
   // Rows
   document.getElementById('tbody').innerHTML = page.map(row => {
-    const acct = curTab==='sal' ? (getVatAcct(curMonth, row[0])||getClientAcct(curMonth, row)) : getClientAcct(curMonth, row);
+    const acct = getClientAcct(curMonth, row);
     const cks = getChecks(curMonth, curTab, row);
     const dispForPct = curTab==='vat' ? [0,2,3,4,5] : [0,1,2,3,4,5];
     const rel = dispForPct.map(i=>cks[i]).filter(c => c!==null);
@@ -1042,38 +1431,47 @@ function _renderTable(){
         <div class="tp">${(()=>{const cd=getClientData(row[0]);const tp=cd.typeOverride||row[1]||'';const tx=cd.taxId||'';return tp+(tx?' · <span style="color:var(--accent)">'+tx+'</span>':'');})()}</div>
       </td>
       <td style="text-align:center">
-        <span class="atag acct-clk" style="background:${acol}22;color:${acol};cursor:pointer" data-rowidx="${start+rowIdx}" data-acct="${acct}"
-          title="לחצי לשינוי מנח&quot;ש">${acct||'—'}</span>
+        <span class="atag" style="background:${acol}22;color:${acol};cursor:pointer"
+          onclick="showReDd(event,'${row[0].replace(/'/g,"\'")}','${acct}')"
+          title="לחצי לשינוי">${acct||'—'}</span>
       </td>
-      ${curTab==='vat' ? (() => {
-        return getSendBadge(row[0], row[4]||'') +
-        makeCb(cks[0], start+rowIdx, 0) +
-        makeCb(cks[2], start+rowIdx, 2) +
-        makeCb(cks[3], start+rowIdx, 3) +
-        makeCb(cks[4], start+rowIdx, 4) +
-        makeCb(cks[5], start+rowIdx, 5) + `
-        <td style="text-align:center">
-          <div class="ring">
-            <svg width="28" height="28" viewBox="0 0 34 34" style="transform:rotate(-90deg)">
-              <circle cx="17" cy="17" r="${ri}" fill="none" stroke="#E2E8F0" stroke-width="2.5"/>
-              <circle cx="17" cy="17" r="${ri}" fill="none" stroke="${ringColor}" stroke-width="2.5"
-                stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
-            </svg>
-            <div class="ring-txt">${pct}</div>
-          </div>
-        </td>
-        <td style="text-align:center">
-          <button onclick="openSummaryPanel('${row[0].replace(/'/g,"\'")}','${acct}')"
-            style="width:26px;height:26px;border-radius:6px;border:1.5px dashed #CBD5E1;background:#F8FAFC;color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center">+</button>
-        </td>
-        <td style="text-align:center">
-          <button onclick="sendToClient('${row[0].replace(/'/g,"\'")}',event)"
-            style="width:26px;height:26px;border-radius:6px;border:1.5px dashed #CBD5E1;background:#F8FAFC;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center">📤</button>
-        </td>
-        <td style="text-align:center">${renderVatCmdCell(row[0])}</td>
-        <td style="text-align:center">${renderFileNoteBtn(row[0])}</td>` +
-        renderMissingInvoiceCell(row[0], row[1]||'',(start+rowIdx));
-      })() : ''}
+      ${getSendBadge(row[0], row[4]||'')}
+      ${makeCb(cks[0], start+rowIdx, 0)}
+      ${makeCb(cks[2], start+rowIdx, 2)}
+      ${makeCb(cks[3], start+rowIdx, 3)}
+      ${makeCb(cks[4], start+rowIdx, 4)}
+      ${makeCb(cks[5], start+rowIdx, 5)}
+      <td style="text-align:center">
+        <div class="ring">
+          <svg width="28" height="28" viewBox="0 0 34 34" style="transform:rotate(-90deg)">
+            <circle cx="17" cy="17" r="11" fill="none" stroke="#E2E8F0" stroke-width="2.5"/>
+            <circle cx="17" cy="17" r="11" fill="none" stroke="${pct===100?'var(--success)':pct>0?'var(--warn)':'#CBD5E1'}" stroke-width="2.5"
+              stroke-dasharray="${(2*Math.PI*11).toFixed(1)}" stroke-dashoffset="${(2*Math.PI*11*(1-pct/100)).toFixed(1)}" stroke-linecap="round"/>
+          </svg>
+          <div class="ring-txt">${pct}</div>
+        </div>
+      </td>
+      <td style="text-align:center">
+        <button onclick="openSummaryPanel('${row[0].replace(/'/g,"\'")}','${acct}')"
+          style="width:26px;height:26px;border-radius:6px;border:1.5px dashed #CBD5E1;background:#F8FAFC;color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s"
+          onmouseover="this.style.background='#EFF6FF';this.style.borderColor='var(--accent)'"
+          onmouseout="this.style.background='#F8FAFC';this.style.borderColor='#CBD5E1'"
+          title="ריכוז נתונים">+</button>
+      </td>
+      <td style="text-align:center">
+        <button onclick="sendToClient('${row[0].replace(/'/g,"\'")}',event)"
+          style="width:26px;height:26px;border-radius:6px;border:1.5px dashed #CBD5E1;background:#F8FAFC;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s"
+          onmouseover="this.style.background='#F0FDF4';this.style.borderColor='#16A34A'"
+          onmouseout="this.style.background='#F8FAFC';this.style.borderColor='#CBD5E1'"
+          title="שליחה ללקוח">📤</button>
+      </td>
+      <td style="text-align:center">
+        ${renderVatCmdCell(row[0])}
+      </td>
+      <td style="text-align:center">
+        ${renderFileNoteBtn(row[0])}
+      </td>
+      ${renderMissingInvoiceCell(row[0], row[1]||'',(start+rowIdx))}
     </tr>`;
   }).join('');
 
@@ -1126,14 +1524,12 @@ function handleToggle(absIdx, colIdx){
 }
 
 // ── Quick reassign dropdown ──
-let _reDdClient = null;
 function showReDd(e, clientName, curAcct){
   e.stopPropagation();
-  _reDdClient = clientName;
   const dd = document.getElementById('reDd');
   const accts = getAccts();
-  dd.innerHTML = '<div style="font-size:11px;color:var(--gray);padding:4px 8px 8px;font-weight:600">בחרי מנח\"ש:</div>' +
-    accts.map((a,i) => '<button class="redd-opt" data-acct="'+encodeURIComponent(a)+'">' + a + (a===curAcct?' ✓':'') + '</button>').join('');
+  dd.innerHTML = `<div style="font-size:11px;color:var(--gray);padding:4px 8px 8px;font-weight:600">בחרי מנח"ש:</div>` +
+    accts.map(a => `<button onclick="quickReassign('${clientName.replace(/'/g,"\'")}','${a}')">${a}${a===curAcct?' ✓':''}</button>`).join('');
   dd.style.display = 'block';
   const rect = e.target.getBoundingClientRect();
   dd.style.top = (rect.bottom + window.scrollY + 4) + 'px';
@@ -1145,36 +1541,7 @@ function quickReassign(clientName, acct){
   renderTable();
   toast('הועבר ל-' + acct);
 }
-document.addEventListener('click', (e) => {
-  // Handle accountant tag click → open dropdown
-  const tag = e.target.closest('.acct-clk');
-  if(tag){
-    e.stopPropagation();
-    const absIdx = parseInt(tag.dataset.rowidx);
-    const curAcct = tag.dataset.acct || '';
-    const rows = getFilteredRows();
-    const row = rows[absIdx];
-    _reDdClient = row ? row[0] : null;
-    if(!_reDdClient) return;
-    const dd = document.getElementById('reDd');
-    const accts = getAccts();
-    dd.innerHTML = '<div style="font-size:11px;color:var(--gray);padding:4px 8px 8px;font-weight:600">בחרי מנח\"ש:</div>' +
-      accts.map(a => '<button class="redd-opt" data-acct="'+encodeURIComponent(a)+'">' + a + (a===curAcct?' ✓':'') + '</button>').join('');
-    dd.style.display = 'block';
-    const rect = tag.getBoundingClientRect();
-    dd.style.top = (rect.bottom + window.scrollY + 4) + 'px';
-    dd.style.right = (window.innerWidth - rect.right) + 'px';
-    return;
-  }
-  // Handle reDd option click
-  const btn = e.target.closest('.redd-opt');
-  if(btn){
-    const acct = decodeURIComponent(btn.dataset.acct);
-    if(acct && _reDdClient) quickReassign(_reDdClient, acct);
-    return;
-  }
-  if(!e.target.closest('#reDd')) document.getElementById('reDd').style.display='none';
-});
+document.addEventListener('click', () => { document.getElementById('reDd').style.display='none'; });
 
 // ── Reassign modal ──
 function doReassign(){
@@ -1216,13 +1583,15 @@ let curMainTab = 'monthly';
 
 function switchMainTab(m){
   curMainTab = m;
-  ['mainTabMonthly','mainTabClose','mainTabClients'].forEach(id=>{
+  ['mainTabMonthly','mainTabClose','mainTabClients','mainTabMasav'].forEach(id=>{
+    if(!document.getElementById(id)) return;
     document.getElementById(id).className='main-tab'+(id==='mainTab'+m.charAt(0).toUpperCase()+m.slice(1)?' active':'');
   });
   document.getElementById('monthlySubNav').style.display = m==='monthly' ? '' : 'none';
   document.getElementById('mainVat').style.display = m==='monthly' ? '' : 'none';
   document.getElementById('mainClose').style.display = m==='close' ? '' : 'none';
   document.getElementById('mainClients').style.display = m==='clients' ? '' : 'none';
+  document.getElementById('mainMasav').style.display = m==='masav' ? '' : 'none';
   if(m==='monthly'){ updateStats(); renderTable(); }
   if(m==='close'){ renderYearTabs(); renderCoList(); }
   if(m==='clients'){ renderClientsTable(); populateClientsAcctFilter(); }
@@ -1232,8 +1601,6 @@ function switchTab(t){
   curTab = t;
   document.getElementById('tabVat').className = 'sheet-tab' + (t==='vat'?' active':'');
   document.getElementById('tabSal').className = 'sheet-tab salary' + (t==='sal'?' active':'');
-  const sfEl=document.getElementById('sendFilt');
-  if(sfEl) sfEl.style.display=t==='vat'?'':'none';
   updateStats(); renderTable();
 }
 
