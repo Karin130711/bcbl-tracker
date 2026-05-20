@@ -300,18 +300,64 @@ function renderMasavTable(){
 function downloadMasav(){
   const valid=masavData.filter(s=>s.bank&&s.account);
   if(!valid.length){toast('⚠️ אין שורות תקינות');return;}
-  function pad(v,l,c='0',r=false){const s=String(v||'').slice(0,l);return r?s.padEnd(l,c):s.padStart(l,c);}
+
+  // Strict pad - digits only, ASCII only
+  function padN(v,l){ return String(v||'').replace(/\D/g,'').padStart(l,'0').slice(-l); }
+  function padS(v,l){ return String(v||'').replace(/[^\x20-\x7E]/g,' ').padEnd(l,' ').slice(0,l); }
+
   const today=new Date();
-  const dd=String(today.getDate()).padStart(2,'0'),mm=String(today.getMonth()+1).padStart(2,'0'),yyyy=String(today.getFullYear()),yy=yyyy.slice(2);
-  const dt8=dd+mm+yyyy; const dt6=dd+mm+yy;
-  let h='1';h+=pad(masavSender.bankCode||'031',3);h+=pad(masavSender.branch,3);h+=pad(masavSender.account,9);h+=dt8;h+=pad('000001',6);h+=' '.repeat(Math.max(0,80-h.length));
-  let lines=[h.slice(0,80)];
+  const dd=String(today.getDate()).padStart(2,'0');
+  const mm=String(today.getMonth()+1).padStart(2,'0');
+  const yyyy=String(today.getFullYear());
+  const yy=yyyy.slice(2);
+  const dt8=dd+mm+yyyy;
+  const dt6=dd+mm+yy;
+
+  // Header record – exactly 80 chars
+  const sBank = padN(masavSender.bankCode||'031',3);
+  const sBranch = padN(masavSender.branch,3);
+  const sAcct = padN(masavSender.account,9);
+  let h = '1'+sBank+sBranch+sAcct+dt8+'000001';
+  h = h.padEnd(80,' ').slice(0,80);
+
+  let lines=[h];
   let tot=0;
-  valid.forEach((s,i)=>{ const ag=Math.round(s.amount*100);tot+=ag; let r='2';r+=pad(s.bank,3);r+=pad(s.branch||'0',3);r+=pad(s.account,9);r+=pad(ag,10);r+=pad(i+1,10);r+=pad('',16,' ',true);r+=' '.repeat(Math.max(0,80-r.length));lines.push(r.slice(0,80)); });
-  let t='9';t+=pad(tot,10);t+=pad(valid.length,6);t+=' '.repeat(Math.max(0,80-t.length));lines.push(t.slice(0,80));
-  const blob=new Blob([lines.join('\r\n')],{type:'text/plain;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='masav_'+dt6+'.txt';a.click();URL.revokeObjectURL(a.href);
-  toast('✓ מס"ב הורד — '+valid.length+' תשלומים, ₪'+valid.reduce((a,b)=>a+b.amount,0).toLocaleString('he-IL'));
+
+  valid.forEach((s,i)=>{
+    const ag=Math.round((parseFloat(s.amount)||0)*100);
+    tot+=ag;
+    const rBank = padN(s.bank,3);
+    const rBranch = padN(s.branch||'0',3);
+    const rAcct = padN(s.account,9);
+    const rAmt = String(ag).padStart(10,'0').slice(-10);
+    const rRef = String(i+1).padStart(10,'0').slice(-10);
+    const rName = padS('',16); // blank name – safest for ASCII compliance
+    let r = '2'+rBank+rBranch+rAcct+rAmt+rRef+rName;
+    r = r.padEnd(80,' ').slice(0,80);
+    lines.push(r);
+  });
+
+  // Trailer record – exactly 80 chars
+  const tAmt = String(tot).padStart(10,'0').slice(-10);
+  const tCnt = String(valid.length).padStart(6,'0').slice(-6);
+  let t = '9'+tAmt+tCnt;
+  t = t.padEnd(80,' ').slice(0,80);
+  lines.push(t);
+
+  // Join with \n only (some bank systems fail on \r\n)
+  const content = lines.join('\n');
+
+  // Verify record count and lengths before download
+  const allOk = lines.every(l=>l.length===80);
+  if(!allOk){ toast('⚠️ שגיאה פנימית בפורמט – פנה לתמיכה'); console.error('Masav lines not 80 chars:', lines.map((l,i)=>i+': '+l.length)); return; }
+
+  const blob=new Blob([content],{type:'text/plain;charset=us-ascii'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='masav_'+dt6+'.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('✓ מס"ב הורד — '+valid.length+' תשלומים, ₪'+valid.reduce((a,b)=>a+(parseFloat(b.amount)||0),0).toLocaleString('he-IL'));
 }
 
 </script>
