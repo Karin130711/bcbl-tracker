@@ -746,6 +746,19 @@ const DATA = {"01/25": {"v": [["א.ד קינג בע\"מ", "חברה מורשית
 
 // ── State ──
 const MONTHS = Object.keys(DATA);
+
+// ── טעינת חודשים שנוספו ידנית ─────────────────────────
+(function loadSavedMonths(){
+  try {
+    const saved = JSON.parse(localStorage.getItem('bl_extra_months') || '[]');
+    saved.forEach(m => {
+      if (!DATA[m]) {
+        const d = JSON.parse(localStorage.getItem('bl_extra_data_' + m.replace('/', '_')) || 'null');
+        if (d) { DATA[m] = d; MONTHS.push(m); }
+      }
+    });
+  } catch(e) {}
+})();
 const LS = key => localStorage.getItem(key);
 const LSS = (k,v) => localStorage.setItem(k, JSON.stringify(v));
 const LSG = k => { try { return JSON.parse(LS(k)) } catch(e) { return null } };
@@ -2720,6 +2733,14 @@ function createNewMonth(){
     s: prevSal.map(resetRow),
   };
   MONTHS.push(val);
+  
+  // ── שמירת החודש החדש ב-localStorage ──
+  try {
+    const extra = JSON.parse(localStorage.getItem('bl_extra_months') || '[]');
+    if (!extra.includes(val)) extra.push(val);
+    localStorage.setItem('bl_extra_months', JSON.stringify(extra));
+    localStorage.setItem('bl_extra_data_' + val.replace('/', '_'), JSON.stringify(DATA[val]));
+  } catch(e) {}
   
   // Transfer custom clients
   const perMonth = LSG('bl_custom_per_month')||{};
