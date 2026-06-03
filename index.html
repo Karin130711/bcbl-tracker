@@ -746,8 +746,6 @@ const DATA = {"01/25": {"v": [["א.ד קינג בע\"מ", "חברה מורשית
 
 // ── State ──
 const MONTHS = Object.keys(DATA);
-
-// ── טעינת חודשים שנוספו ידנית ─────────────────────────
 (function loadSavedMonths(){
   try {
     const saved = JSON.parse(localStorage.getItem('bl_extra_months') || '[]');
@@ -767,7 +765,7 @@ let curMonth = MONTHS[MONTHS.length - 1];
 let curTab = 'vat'; // 'vat' | 'sal'
 let curFilt = 'all';
 let curPage = 1;
-const PAGE = 25;
+const PAGE = 9999;
 
 const VAT_COLS = ['חומר התקבל','מאושר','דווח מעמ','שולם מעמ','מקדמות דווח','מקדמות שולם'];
 const VAT_COLS_SHORT = ['📥 חומר','✔ אישור','📄 מעמ','💳 שולם','📋 מקדמות','💰 שולם'];
@@ -1142,17 +1140,8 @@ function _renderTable(){
 
   // Pagination
   const np = Math.ceil(total/PAGE);
-  document.getElementById('pgInfo').textContent = `${Math.min(start+1,total)}–${Math.min(start+PAGE,total)} מתוך ${total}`;
-  const pb = document.getElementById('pgBtns');
-  pb.innerHTML = '';
-  for(let i=1;i<=np;i++){
-    const b=document.createElement('button');
-    b.className='pg-btn'+(i===curPage?' cur':'');
-    b.textContent=i;
-    const p=i;
-    b.onclick=()=>{curPage=p;_renderTable();};
-    pb.appendChild(b);
-  }
+  document.getElementById('pgInfo').textContent = `סה"כ: ${total} רובריקות`;
+  document.getElementById('pgBtns').innerHTML = '';
 }
 
 function toggleNA(absIdx, colIdx){
@@ -2733,8 +2722,6 @@ function createNewMonth(){
     s: prevSal.map(resetRow),
   };
   MONTHS.push(val);
-  
-  // ── שמירת החודש החדש ב-localStorage ──
   try {
     const extra = JSON.parse(localStorage.getItem('bl_extra_months') || '[]');
     if (!extra.includes(val)) extra.push(val);
