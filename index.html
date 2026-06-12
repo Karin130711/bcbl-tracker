@@ -530,161 +530,49 @@ tbody td:first-child{padding-right:10px;text-align:right}
 
 
 <!-- ══ עיבוד נתונים ══ -->
-<div id="mainProcessing" style="display:none;padding:20px;max-width:1100px;margin:0 auto;direction:rtl">
-
-  <!-- Main sub-tabs: שכר / מע"מ / דוחות שנתיים -->
-  <div style="display:flex;gap:6px;margin-bottom:24px;border-bottom:2px solid #E2E8F0;padding-bottom:0">
-    <div class="sheet-tab active" id="procMainTabSal" onclick="switchProcMainTab('sal')" style="font-size:13px">💰 שכר</div>
-    <div class="sheet-tab" id="procMainTabVat" onclick="switchProcMainTab('vat')" style="font-size:13px;opacity:.5;cursor:not-allowed" title="בקרוב">🧾 מע"מ</div>
-    <div class="sheet-tab" id="procMainTabYear" onclick="switchProcMainTab('year')" style="font-size:13px;opacity:.5;cursor:not-allowed" title="בקרוב">📊 דוחות שנתיים</div>
+<div id="mainProcessing" style="display:none">
+  <!-- Processing sub-nav -->
+  <div style="background:#fff;border-bottom:2px solid #E2E8F0;display:flex;align-items:center;padding:0 16px">
+    <div class="sheet-tab active" id="procTabSal" onclick="switchProcTab('sal')" style="font-size:13px;padding:10px 20px">💰 שכר</div>
+    <div class="sheet-tab" id="procTabVat" onclick="switchProcTab('vat')" style="font-size:13px;padding:10px 20px">🧾 מע"מ</div>
+    <div class="sheet-tab" id="procTabYear" onclick="switchProcTab('year')" style="font-size:13px;padding:10px 20px">📊 דוחות שנתיים</div>
+    <div class="sheet-tab" id="procTabMisc" onclick="switchProcTab('misc')" style="font-size:13px;padding:10px 20px">📋 שונות</div>
   </div>
 
-  <!-- ══ שכר ══ -->
-  <div id="procSal">
-    <!-- Salary sub-tabs -->
-    <div style="display:flex;gap:6px;margin-bottom:20px">
-      <button id="salSubEmployers" onclick="switchSalTab('employers')"
-        style="padding:8px 18px;border-radius:8px;border:1px solid #3B82F6;background:#3B82F6;color:#fff;cursor:pointer;font-weight:700;font-size:13px;font-family:inherit">
-        🏢 מעסיקים ועובדים
-      </button>
-      <button id="salSubProcess" onclick="switchSalTab('process')"
-        style="padding:8px 18px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;color:#64748B;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit">
-        📤 עיבוד קובץ שכר
-      </button>
-    </div>
-
-    <!-- EMPLOYERS -->
-    <div id="salEmployers">
-      <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px">
-
-        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px;min-width:240px">
-          <div style="font-weight:700;margin-bottom:12px;font-size:14px">➕ הוספת מעסיק</div>
-          <input id="newEmpCompanyId" type="number" placeholder="מספר חברה" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;box-sizing:border-box">
-          <input id="newEmpCompanyName" type="text" placeholder="שם החברה" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;box-sizing:border-box">
-          <button onclick="addEmployer()" style="background:#3B82F6;color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:700;width:100%">שמור מעסיק</button>
-        </div>
-
-        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px;min-width:240px">
-          <div style="font-weight:700;margin-bottom:12px;font-size:14px">🏢 בחר מעסיק</div>
-          <select id="employerSelect" onchange="loadEmployees()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;margin-bottom:8px;box-sizing:border-box">
-            <option value="">-- בחר מעסיק --</option>
-          </select>
-        </div>
-
-        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px;min-width:300px">
-          <div style="font-weight:700;margin-bottom:12px;font-size:14px">👤 הוספת עובד</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <input id="newWorkerNum" type="number" placeholder="מספר עובד" style="padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl">
-            <input id="newWorkerName" type="text" placeholder="שם העובד" style="padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl">
-            <input id="newWorkerId" type="text" placeholder="ת.ז." style="padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl">
-            <input id="newWorkerStart" type="date" style="padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit">
-          </div>
-          <select id="newWorkerType" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;margin-bottom:8px;box-sizing:border-box">
-            <option value="hourly">שעתי</option>
-            <option value="global">גלובלי</option>
-          </select>
-          <button onclick="addWorker()" style="background:#10B981;color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:700;width:100%">הוסף עובד</button>
-        </div>
-      </div>
-
-      <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
-        <div style="padding:12px 16px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;font-weight:700;font-size:14px">רשימת עובדים</div>
-        <div id="employeesTableInner" style="padding:16px;color:#94A3B8;font-size:13px">בחר מעסיק כדי לראות עובדים</div>
-      </div>
-    </div>
-
-    <!-- PROCESS FILE -->
-    <div id="salProcess" style="display:none">
-      <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
-        <div>
-          <div style="font-size:12px;font-weight:600;color:#64748B;margin-bottom:4px">מעסיק</div>
-          <select id="processEmployerSelect" style="padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;min-width:200px">
-            <option value="">-- בחר מעסיק --</option>
-          </select>
-        </div>
-        <div>
-          <div style="font-size:12px;font-weight:600;color:#64748B;margin-bottom:4px">חודש</div>
-          <select id="processMonth" style="padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl">
-            <option value="1">01</option><option value="2">02</option><option value="3">03</option>
-            <option value="4">04</option><option value="5">05</option><option value="6">06</option>
-            <option value="7">07</option><option value="8">08</option><option value="9">09</option>
-            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
-          </select>
-        </div>
-        <div>
-          <div style="font-size:12px;font-weight:600;color:#64748B;margin-bottom:4px">שנה</div>
-          <input id="processYear" type="number" value="2026" style="padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;width:80px">
-        </div>
-      </div>
-
-      <div id="uploadArea" style="border:2px dashed #CBD5E1;border-radius:12px;padding:40px;text-align:center;margin-bottom:20px;cursor:pointer;transition:all .2s;background:#FAFCFF"
-           onclick="document.getElementById('payrollFileInput').click()"
-           ondragover="event.preventDefault();this.style.borderColor='#3B82F6';this.style.background='#EFF6FF'"
-           ondragleave="this.style.borderColor='#CBD5E1';this.style.background='#FAFCFF'"
-           ondrop="handleFileDrop(event)">
-        <div style="font-size:40px;margin-bottom:8px">📎</div>
-        <div style="font-weight:700;color:#334155;margin-bottom:4px">גרור קובץ לכאן או לחץ לבחירה</div>
-        <div style="font-size:12px;color:#94A3B8">Excel, PDF, או צילום מסך (JPG/PNG)</div>
-        <input type="file" id="payrollFileInput" style="display:none" accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png" onchange="handleFileSelect(event)">
-      </div>
-
-      <div id="aiProcessingArea" style="display:none">
-        <div id="aiStatus" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:14px 18px;margin-bottom:16px;font-size:13px;color:#1E40AF;display:flex;align-items:center;gap:10px">
-          <span id="aiStatusIcon">⏳</span>
-          <span id="aiStatusText">מעבד את הקובץ...</span>
-        </div>
-        <div id="aiResultsWrap" style="display:none">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-            <div style="font-weight:700;font-size:15px">תוצאות עיבוד AI</div>
-            <div style="display:flex;gap:8px">
-              <button onclick="exportToMichpal()" style="background:#10B981;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:13px">📥 ייצא לקליטת מיכפל</button>
-              <button onclick="saveMonthlyRecords()" style="background:#3B82F6;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:13px">💾 שמור במאגר</button>
-            </div>
-          </div>
-          <div id="aiWarnings" style="margin-bottom:12px"></div>
-          <div style="overflow-x:auto;border:1px solid #E2E8F0;border-radius:10px">
-            <table style="width:100%;border-collapse:collapse;font-size:12px">
-              <thead>
-                <tr style="background:#F8FAFC">
-                  <th style="padding:10px 8px;text-align:right;border-bottom:1px solid #E2E8F0;white-space:nowrap">מס׳</th>
-                  <th style="padding:10px 8px;text-align:right;border-bottom:1px solid #E2E8F0;white-space:nowrap">שם עובד</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">סוג</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">ימים<br>משולמים</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">שעות<br>תקן</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">שעות<br>בפועל</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">שכר<br>בסיס</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">125%</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">150%</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">חופש</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">מחלה<br>50%</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">מחלה<br>100%</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">חג</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">הבראה</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">נסיעות</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">בונוס</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">חוסר</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">ניכויים</th>
-                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">סטטוס</th>
-                </tr>
-              </thead>
-              <tbody id="aiResultsBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+  <!-- שכר -->
+  <div id="procSal" style="padding:30px;direction:rtl">
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">💰 עיבוד נתוני שכר</div>
+    <div style="color:#64748B;font-size:14px">כאן תוכלי להעלות קבצי שכר מלקוחות ולייצר קבצי קליטה למיכפל.</div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">
+      🚧 בבנייה — בקרוב
     </div>
   </div>
 
-  <!-- ══ Coming soon placeholders ══ -->
-  <div id="procVat" style="display:none;padding:60px;text-align:center;color:#94A3B8">
-    <div style="font-size:48px;margin-bottom:12px">🧾</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px">עיבוד מע"מ</div>
-    <div style="font-size:14px">בקרוב...</div>
+  <!-- מע"מ -->
+  <div id="procVat" style="display:none;padding:30px;direction:rtl">
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">🧾 עיבוד נתוני מע"מ</div>
+    <div style="color:#64748B;font-size:14px">כאן תוכלי לעבד דוחות מע"מ.</div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">
+      🚧 בבנייה — בקרוב
+    </div>
   </div>
-  <div id="procYear" style="display:none;padding:60px;text-align:center;color:#94A3B8">
-    <div style="font-size:48px;margin-bottom:12px">📊</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px">דוחות שנתיים</div>
-    <div style="font-size:14px">בקרוב...</div>
+
+  <!-- דוחות שנתיים -->
+  <div id="procYear" style="display:none;padding:30px;direction:rtl">
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">📊 דוחות שנתיים</div>
+    <div style="color:#64748B;font-size:14px">כאן תוכלי לעבד דוחות שנתיים.</div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">
+      🚧 בבנייה — בקרוב
+    </div>
+  </div>
+
+  <!-- שונות -->
+  <div id="procMisc" style="display:none;padding:30px;direction:rtl">
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">📋 שונות</div>
+    <div style="color:#64748B;font-size:14px">טפסים ומסמכים שונים.</div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">
+      🚧 בבנייה — בקרוב
+    </div>
   </div>
 </div>
 <div class="overlay" id="fileNoteModal">
@@ -1453,7 +1341,7 @@ function switchMainTab(m){
     document.getElementById('procSal').style.display='';
     document.getElementById('procVat').style.display='none';
     document.getElementById('procYear').style.display='none';
-    loadEmployers(); 
+    document.getElementById('procMisc').style.display='none';
   }
 }
 
@@ -3077,15 +2965,10 @@ let procEmployersList = [];
 let procWorkersList = [];
 let aiResults = [];
 
-// ── Processing main tab switch ──
-function switchProcMainTab(t){
-  const map = {sal:'procSal', vat:'procVat', year:'procYear'};
-  const btnMap = {sal:'procMainTabSal', vat:'procMainTabVat', year:'procMainTabYear'};
-  ['sal','vat','year'].forEach(x=>{
-    const btn = document.getElementById(btnMap[x]);
-    const sec = document.getElementById(map[x]);
-    if(btn) btn.className='sheet-tab'+(x===t?' active':'');
-    if(sec) sec.style.display = x===t?'':'none';
+function switchProcTab(t){
+  ['sal','vat','year','misc'].forEach(x=>{
+    document.getElementById('procTab'+x.charAt(0).toUpperCase()+x.slice(1)).className='sheet-tab'+(x===t?' active':'');
+    document.getElementById('proc'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=x===t?'':'none';
   });
 }
 
@@ -3466,6 +3349,7 @@ function fileToBase64(file){
 document.getElementById('mainProcessing').style.display='none';
 document.getElementById('procVat').style.display='none';
 document.getElementById('procYear').style.display='none';
+document.getElementById('procMisc').style.display='none';
 
 
 // Init sub-nav visibility
