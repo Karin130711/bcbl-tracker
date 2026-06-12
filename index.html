@@ -535,6 +535,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
   <div style="background:#fff;border-bottom:2px solid #E2E8F0;display:flex;align-items:center;padding:0 16px">
     <div class="sheet-tab active" id="procTabSal" onclick="switchProcTab('sal')" style="font-size:13px;padding:10px 20px">💰 שכר</div>
     <div class="sheet-tab" id="procTabVat" onclick="switchProcTab('vat')" style="font-size:13px;padding:10px 20px">🧾 מע"מ</div>
+    <div class="sheet-tab" id="procTabCtrl" onclick="switchProcTab('ctrl')" style="font-size:13px;padding:10px 20px">✅ בקרות</div>
     <div class="sheet-tab" id="procTabYear" onclick="switchProcTab('year')" style="font-size:13px;padding:10px 20px">📊 דוחות שנתיים</div>
     <div class="sheet-tab" id="procTabMisc" onclick="switchProcTab('misc')" style="font-size:13px;padding:10px 20px">📋 שונות</div>
   </div>
@@ -543,36 +544,35 @@ tbody td:first-child{padding-right:10px;text-align:right}
   <div id="procSal" style="padding:30px;direction:rtl">
     <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">💰 עיבוד נתוני שכר</div>
     <div style="color:#64748B;font-size:14px">כאן תוכלי להעלות קבצי שכר מלקוחות ולייצר קבצי קליטה למיכפל.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">
-      🚧 בבנייה — בקרוב
-    </div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
   </div>
 
   <!-- מע"מ -->
   <div id="procVat" style="display:none;padding:30px;direction:rtl">
     <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">🧾 עיבוד נתוני מע"מ</div>
     <div style="color:#64748B;font-size:14px">כאן תוכלי לעבד דוחות מע"מ.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">
-      🚧 בבנייה — בקרוב
-    </div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
+  </div>
+
+  <!-- בקרות -->
+  <div id="procCtrl" style="display:none;padding:30px;direction:rtl">
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">✅ בקרות</div>
+    <div style="color:#64748B;font-size:14px">בקרות ואימותים על נתוני השכר והחשבונות.</div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
   </div>
 
   <!-- דוחות שנתיים -->
   <div id="procYear" style="display:none;padding:30px;direction:rtl">
     <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">📊 דוחות שנתיים</div>
     <div style="color:#64748B;font-size:14px">כאן תוכלי לעבד דוחות שנתיים.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">
-      🚧 בבנייה — בקרוב
-    </div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
   </div>
 
   <!-- שונות -->
   <div id="procMisc" style="display:none;padding:30px;direction:rtl">
     <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">📋 שונות</div>
     <div style="color:#64748B;font-size:14px">טפסים ומסמכים שונים.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">
-      🚧 בבנייה — בקרוב
-    </div>
+    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
   </div>
 </div>
 <div class="overlay" id="fileNoteModal">
@@ -1340,6 +1340,7 @@ function switchMainTab(m){
   if(m==='processing'){ 
     document.getElementById('procSal').style.display='';
     document.getElementById('procVat').style.display='none';
+    document.getElementById('procCtrl').style.display='none';
     document.getElementById('procYear').style.display='none';
     document.getElementById('procMisc').style.display='none';
   }
@@ -2966,7 +2967,7 @@ let procWorkersList = [];
 let aiResults = [];
 
 function switchProcTab(t){
-  ['sal','vat','year','misc'].forEach(x=>{
+  ['sal','vat','ctrl','year','misc'].forEach(x=>{
     document.getElementById('procTab'+x.charAt(0).toUpperCase()+x.slice(1)).className='sheet-tab'+(x===t?' active':'');
     document.getElementById('proc'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=x===t?'':'none';
   });
@@ -3348,6 +3349,7 @@ function fileToBase64(file){
 // ── Init processing tab ──
 document.getElementById('mainProcessing').style.display='none';
 document.getElementById('procVat').style.display='none';
+document.getElementById('procCtrl').style.display='none';
 document.getElementById('procYear').style.display='none';
 document.getElementById('procMisc').style.display='none';
 
