@@ -1449,7 +1449,12 @@ function switchMainTab(m){
   if(m==='monthly'){ updateStats(); renderTable(); }
   if(m==='close'){ renderYearTabs(); renderCoList(); }
   if(m==='clients'){ renderClientsTable(); populateClientsAcctFilter(); }
-  if(m==='processing'){ loadEmployers(); }
+  if(m==='processing'){ 
+    document.getElementById('procSal').style.display='';
+    document.getElementById('procVat').style.display='none';
+    document.getElementById('procYear').style.display='none';
+    loadEmployers(); 
+  }
 }
 
 function switchTab(t){
@@ -3074,9 +3079,11 @@ let aiResults = [];
 
 // ── Processing main tab switch ──
 function switchProcMainTab(t){
+  const map = {sal:'procSal', vat:'procVat', year:'procYear'};
+  const btnMap = {sal:'procMainTabSal', vat:'procMainTabVat', year:'procMainTabYear'};
   ['sal','vat','year'].forEach(x=>{
-    const btn = document.getElementById('procMainTab'+x.charAt(0).toUpperCase()+x.slice(1));
-    const sec = document.getElementById('proc'+x.charAt(0).toUpperCase()+x.slice(1));
+    const btn = document.getElementById(btnMap[x]);
+    const sec = document.getElementById(map[x]);
     if(btn) btn.className='sheet-tab'+(x===t?' active':'');
     if(sec) sec.style.display = x===t?'':'none';
   });
