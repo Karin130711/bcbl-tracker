@@ -259,6 +259,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <div class="main-tab active" id="mainTabMonthly" onclick="switchMainTab('monthly')">📅 חודש שוטף</div>
     <div class="main-tab" id="mainTabClose" onclick="switchMainTab('close')">📊 סגירות שנתיות</div>
     <div class="main-tab" id="mainTabClients" onclick="switchMainTab('clients')">👥 לקוחות</div>
+    <div class="main-tab" id="mainTabProcessing" onclick="switchMainTab('processing')">⚙️ עיבוד נתונים</div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;padding:0 16px 0 0">
     <span id="syncIndicator" style="display:flex;align-items:center;font-size:11px;color:var(--text3)">
@@ -525,11 +526,167 @@ tbody td:first-child{padding-right:10px;text-align:right}
       </tr></thead>
       <tbody id="clientsTbody"></tbody>
     </table>
-  </div>
 </div>
 
 
-<!-- File Notes Modal -->
+<!-- ══ עיבוד נתונים ══ -->
+<div id="mainProcessing" style="display:none;padding:20px;max-width:1100px;margin:0 auto;direction:rtl">
+
+  <!-- Main sub-tabs: שכר / מע"מ / דוחות שנתיים -->
+  <div style="display:flex;gap:6px;margin-bottom:24px;border-bottom:2px solid #E2E8F0;padding-bottom:0">
+    <div class="sheet-tab active" id="procMainTabSal" onclick="switchProcMainTab('sal')" style="font-size:13px">💰 שכר</div>
+    <div class="sheet-tab" id="procMainTabVat" onclick="switchProcMainTab('vat')" style="font-size:13px;opacity:.5;cursor:not-allowed" title="בקרוב">🧾 מע"מ</div>
+    <div class="sheet-tab" id="procMainTabYear" onclick="switchProcMainTab('year')" style="font-size:13px;opacity:.5;cursor:not-allowed" title="בקרוב">📊 דוחות שנתיים</div>
+  </div>
+
+  <!-- ══ שכר ══ -->
+  <div id="procSal">
+    <!-- Salary sub-tabs -->
+    <div style="display:flex;gap:6px;margin-bottom:20px">
+      <button id="salSubEmployers" onclick="switchSalTab('employers')"
+        style="padding:8px 18px;border-radius:8px;border:1px solid #3B82F6;background:#3B82F6;color:#fff;cursor:pointer;font-weight:700;font-size:13px;font-family:inherit">
+        🏢 מעסיקים ועובדים
+      </button>
+      <button id="salSubProcess" onclick="switchSalTab('process')"
+        style="padding:8px 18px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;color:#64748B;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit">
+        📤 עיבוד קובץ שכר
+      </button>
+    </div>
+
+    <!-- EMPLOYERS -->
+    <div id="salEmployers">
+      <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:20px">
+
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px;min-width:240px">
+          <div style="font-weight:700;margin-bottom:12px;font-size:14px">➕ הוספת מעסיק</div>
+          <input id="newEmpCompanyId" type="number" placeholder="מספר חברה" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;box-sizing:border-box">
+          <input id="newEmpCompanyName" type="text" placeholder="שם החברה" style="width:100%;margin-bottom:8px;padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;box-sizing:border-box">
+          <button onclick="addEmployer()" style="background:#3B82F6;color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:700;width:100%">שמור מעסיק</button>
+        </div>
+
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px;min-width:240px">
+          <div style="font-weight:700;margin-bottom:12px;font-size:14px">🏢 בחר מעסיק</div>
+          <select id="employerSelect" onchange="loadEmployees()" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;margin-bottom:8px;box-sizing:border-box">
+            <option value="">-- בחר מעסיק --</option>
+          </select>
+        </div>
+
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px;min-width:300px">
+          <div style="font-weight:700;margin-bottom:12px;font-size:14px">👤 הוספת עובד</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <input id="newWorkerNum" type="number" placeholder="מספר עובד" style="padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl">
+            <input id="newWorkerName" type="text" placeholder="שם העובד" style="padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl">
+            <input id="newWorkerId" type="text" placeholder="ת.ז." style="padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl">
+            <input id="newWorkerStart" type="date" style="padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit">
+          </div>
+          <select id="newWorkerType" style="width:100%;padding:8px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;margin-bottom:8px;box-sizing:border-box">
+            <option value="hourly">שעתי</option>
+            <option value="global">גלובלי</option>
+          </select>
+          <button onclick="addWorker()" style="background:#10B981;color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:700;width:100%">הוסף עובד</button>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
+        <div style="padding:12px 16px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;font-weight:700;font-size:14px">רשימת עובדים</div>
+        <div id="employeesTableInner" style="padding:16px;color:#94A3B8;font-size:13px">בחר מעסיק כדי לראות עובדים</div>
+      </div>
+    </div>
+
+    <!-- PROCESS FILE -->
+    <div id="salProcess" style="display:none">
+      <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#64748B;margin-bottom:4px">מעסיק</div>
+          <select id="processEmployerSelect" style="padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl;min-width:200px">
+            <option value="">-- בחר מעסיק --</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#64748B;margin-bottom:4px">חודש</div>
+          <select id="processMonth" style="padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;direction:rtl">
+            <option value="1">01</option><option value="2">02</option><option value="3">03</option>
+            <option value="4">04</option><option value="5">05</option><option value="6">06</option>
+            <option value="7">07</option><option value="8">08</option><option value="9">09</option>
+            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#64748B;margin-bottom:4px">שנה</div>
+          <input id="processYear" type="number" value="2026" style="padding:9px 12px;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;width:80px">
+        </div>
+      </div>
+
+      <div id="uploadArea" style="border:2px dashed #CBD5E1;border-radius:12px;padding:40px;text-align:center;margin-bottom:20px;cursor:pointer;transition:all .2s;background:#FAFCFF"
+           onclick="document.getElementById('payrollFileInput').click()"
+           ondragover="event.preventDefault();this.style.borderColor='#3B82F6';this.style.background='#EFF6FF'"
+           ondragleave="this.style.borderColor='#CBD5E1';this.style.background='#FAFCFF'"
+           ondrop="handleFileDrop(event)">
+        <div style="font-size:40px;margin-bottom:8px">📎</div>
+        <div style="font-weight:700;color:#334155;margin-bottom:4px">גרור קובץ לכאן או לחץ לבחירה</div>
+        <div style="font-size:12px;color:#94A3B8">Excel, PDF, או צילום מסך (JPG/PNG)</div>
+        <input type="file" id="payrollFileInput" style="display:none" accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png" onchange="handleFileSelect(event)">
+      </div>
+
+      <div id="aiProcessingArea" style="display:none">
+        <div id="aiStatus" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:14px 18px;margin-bottom:16px;font-size:13px;color:#1E40AF;display:flex;align-items:center;gap:10px">
+          <span id="aiStatusIcon">⏳</span>
+          <span id="aiStatusText">מעבד את הקובץ...</span>
+        </div>
+        <div id="aiResultsWrap" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+            <div style="font-weight:700;font-size:15px">תוצאות עיבוד AI</div>
+            <div style="display:flex;gap:8px">
+              <button onclick="exportToMichpal()" style="background:#10B981;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:13px">📥 ייצא לקליטת מיכפל</button>
+              <button onclick="saveMonthlyRecords()" style="background:#3B82F6;color:#fff;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;font-size:13px">💾 שמור במאגר</button>
+            </div>
+          </div>
+          <div id="aiWarnings" style="margin-bottom:12px"></div>
+          <div style="overflow-x:auto;border:1px solid #E2E8F0;border-radius:10px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="background:#F8FAFC">
+                  <th style="padding:10px 8px;text-align:right;border-bottom:1px solid #E2E8F0;white-space:nowrap">מס׳</th>
+                  <th style="padding:10px 8px;text-align:right;border-bottom:1px solid #E2E8F0;white-space:nowrap">שם עובד</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">סוג</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">ימים<br>משולמים</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">שעות<br>תקן</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">שעות<br>בפועל</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">שכר<br>בסיס</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">125%</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">150%</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">חופש</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">מחלה<br>50%</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">מחלה<br>100%</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">חג</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">הבראה</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">נסיעות</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">בונוס</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">חוסר</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">ניכויים</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:1px solid #E2E8F0;white-space:nowrap">סטטוס</th>
+                </tr>
+              </thead>
+              <tbody id="aiResultsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Coming soon placeholders ══ -->
+  <div id="procVat" style="display:none;padding:60px;text-align:center;color:#94A3B8">
+    <div style="font-size:48px;margin-bottom:12px">🧾</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px">עיבוד מע"מ</div>
+    <div style="font-size:14px">בקרוב...</div>
+  </div>
+  <div id="procYear" style="display:none;padding:60px;text-align:center;color:#94A3B8">
+    <div style="font-size:48px;margin-bottom:12px">📊</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px">דוחות שנתיים</div>
+    <div style="font-size:14px">בקרוב...</div>
+  </div>
+</div>
 <div class="overlay" id="fileNoteModal">
   <div class="modal" style="width:520px">
     <button class="modal-close" onclick="closeModal('fileNoteModal')">✕</button>
@@ -1048,6 +1205,8 @@ function _renderTable(){
     <th style="width:52px;text-align:center;font-size:11px">💳 ב.לאומי<br>שולם</th>
     <th style="width:66px;text-align:center;font-size:11px">📋 דיווח<br>טופס 100</th>
     <th style="width:62px;text-align:center;font-size:11px">📄 דיווח<br>ניכויים</th>
+    <th style="width:66px;text-align:center;font-size:11px">🏦 סוציאליות<br>נשלח ללקוח</th>
+    <th style="width:62px;text-align:center;font-size:11px">✅ סוציאליות<br>דווח</th>
   </tr>`;
 
   // Rows
@@ -1102,6 +1261,8 @@ function _renderTable(){
       ${curTab==='sal' ? makeCb(cks[5], start+rowIdx, 5) : ''}
       ${curTab==='sal' ? renderForm100Cell(row[0]) : ''}
       ${curTab==='sal' ? renderNikuyimCell(row[0], cks[2], start+rowIdx) : ''}
+      ${curTab==='sal' ? renderSocialSentCell(row[0]) : ''}
+      ${curTab==='sal' ? renderSocialReportedCell(row[0], start+rowIdx) : ''}
       ${curTab==='vat' ? (() => {
         return getSendBadge(row[0], row[4]||'') +
         makeCb(cks[0], start+rowIdx, 0) +
@@ -1277,16 +1438,18 @@ let curMainTab = 'monthly';
 
 function switchMainTab(m){
   curMainTab = m;
-  ['mainTabMonthly','mainTabClose','mainTabClients'].forEach(id=>{
+  ['mainTabMonthly','mainTabClose','mainTabClients','mainTabProcessing'].forEach(id=>{
     document.getElementById(id).className='main-tab'+(id==='mainTab'+m.charAt(0).toUpperCase()+m.slice(1)?' active':'');
   });
   document.getElementById('monthlySubNav').style.display = m==='monthly' ? '' : 'none';
   document.getElementById('mainVat').style.display = m==='monthly' ? '' : 'none';
   document.getElementById('mainClose').style.display = m==='close' ? '' : 'none';
   document.getElementById('mainClients').style.display = m==='clients' ? '' : 'none';
+  document.getElementById('mainProcessing').style.display = m==='processing' ? '' : 'none';
   if(m==='monthly'){ updateStats(); renderTable(); }
   if(m==='close'){ renderYearTabs(); renderCoList(); }
   if(m==='clients'){ renderClientsTable(); populateClientsAcctFilter(); }
+  if(m==='processing'){ loadEmployers(); }
 }
 
 function switchTab(t){
@@ -1969,7 +2132,93 @@ document.addEventListener('click', function(e){
   }
 });
 
-// ── Bakarot (Controls) Cell ──
+// ── Social Insurance Reported Cell (checkbox: empty / ✓ / — N/A) ──
+function socRepKey(clientName){ return 'bl_socrep_'+curMonth.replace('/','_')+'_'+(clientName||'').replace(/[^א-ת\w]/g,'_').slice(0,40); }
+function getSocRep(clientName){ const v=LSG(socRepKey(clientName)); return v===undefined||v===null?false:v; }
+function setSocRep(clientName, val){ LSS(socRepKey(clientName), val); }
+
+function renderSocialReportedCell(clientName, absIdx){
+  const v = getSocRep(clientName);
+  const enc = encodeURIComponent(clientName);
+  if(v === null){
+    return '<td style="text-align:center"><span class="cb na socrep-na" data-name="'+enc+'" title="לא רלוונטי — לחצי להפוך לרלוונטי"><svg viewBox="0 0 14 14"><line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span></td>';
+  }
+  return '<td style="text-align:center"><span class="cb socrep-cb '+(v?'done':'')+'" data-name="'+enc+'" '+
+    'title="'+(v?'דווח — לחצי לביטול | קליק ימני → לא רלוונטי':'ריק — לחצי לסימון | קליק ימני → לא רלוונטי')+'">'+
+    (v?'<svg viewBox="0 0 14 14"><polyline points="2,7 6,11 12,3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')+
+    '</span></td>';
+}
+
+// Toggle social reported
+document.addEventListener('click', function(e){
+  const cb = e.target.closest('.socrep-cb');
+  if(!cb) return;
+  const name = decodeURIComponent(cb.dataset.name);
+  const v = getSocRep(name);
+  setSocRep(name, !v);
+  renderTable();
+  toast(v ? 'דיווח סוציאליות בוטל' : '✓ סוציאליות — סומן כדווח');
+});
+// Click on N/A → make relevant again
+document.addEventListener('click', function(e){
+  const cb = e.target.closest('.socrep-na');
+  if(!cb) return;
+  const name = decodeURIComponent(cb.dataset.name);
+  setSocRep(name, false);
+  renderTable();
+  toast('הופך לרלוונטי ✓');
+});
+// Right-click → set N/A
+document.addEventListener('contextmenu', function(e){
+  const cb = e.target.closest('.socrep-cb');
+  if(!cb) return;
+  e.preventDefault();
+  const name = decodeURIComponent(cb.dataset.name);
+  setSocRep(name, null);
+  renderTable();
+  toast('סומן כלא רלוונטי');
+});
+
+
+function getSocialSent(n){ return LSG('bl_socsent_'+(n||'').replace(/[^א-ת\w]/g,'_').slice(0,40)) || {status:'none'}; }
+function setSocialSent(n, data){ LSS('bl_socsent_'+(n||'').replace(/[^א-ת\w]/g,'_').slice(0,40), data); }
+
+function renderSocialSentCell(clientName){
+  const ss = getSocialSent(clientName);
+  const enc = encodeURIComponent(clientName);
+  const isChecked = ss.status === 'sent';
+
+  const cb = '<span class="cb socsent-cb '+(isChecked?'done':'')+'" data-name="'+enc+'" '+
+    'style="'+(isChecked?'background:#F0FDF4;border-color:#16A34A':'')+'" '+
+    'title="'+(isChecked?'נשלח ב-'+(ss.ts?new Date(ss.ts).toLocaleDateString('he-IL'):'')+' — לחצי לביטול':'סמני לאחר שליחת דוח סוציאליות ללקוח')+'">' +
+    (isChecked?'<svg viewBox="0 0 14 14" width="12"><polyline points="2,7 6,11 12,3" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>':'')+
+    '</span>';
+
+  const result = isChecked
+    ? '<span style="font-size:9px;font-weight:700;background:#F0FDF4;color:#16A34A;padding:1px 5px;border-radius:6px;margin-top:2px;display:block">✓ נשלח</span>'
+    : '';
+
+  return '<td style="text-align:center"><div style="display:flex;flex-direction:column;align-items:center;gap:1px">'+cb+result+'</div></td>';
+}
+
+// Event delegation for social sent
+document.addEventListener('click', function(e){
+  const cb = e.target.closest('.socsent-cb');
+  if(!cb) return;
+  const name = decodeURIComponent(cb.dataset.name);
+  const ss = getSocialSent(name);
+  if(ss.status === 'sent'){
+    setSocialSent(name, {status:'none'});
+    renderTable();
+    toast('שליחת סוציאליות בוטלה');
+  } else {
+    setSocialSent(name, {status:'sent', ts: new Date().toISOString()});
+    renderTable();
+    toast('✓ סוציאליות סומנה כנשלחה — ' + name.slice(0,20));
+  }
+});
+
+
 function getBakarot(n){ return LSG('bl_bak_'+(n||'').replace(/[^א-ת\w]/g,'_').slice(0,40)) || {status:'none'}; }
 function setBakarot(n, data){ LSS('bl_bak_'+(n||'').replace(/[^א-ת\w]/g,'_').slice(0,40), data); }
 
@@ -2815,8 +3064,403 @@ document.addEventListener('click', e => {
 // ── Init ──
 renderMonthNav();
 updateAcctFilters();
-updateStats();
-renderTable();
+// ══════════════════════════════════════════
+// עיבוד נתונים — PROCESSING TAB LOGIC
+// ══════════════════════════════════════════
+
+let procEmployersList = [];
+let procWorkersList = [];
+let aiResults = [];
+
+// ── Processing main tab switch ──
+function switchProcMainTab(t){
+  ['sal','vat','year'].forEach(x=>{
+    const btn = document.getElementById('procMainTab'+x.charAt(0).toUpperCase()+x.slice(1));
+    const sec = document.getElementById('proc'+x.charAt(0).toUpperCase()+x.slice(1));
+    if(btn) btn.className='sheet-tab'+(x===t?' active':'');
+    if(sec) sec.style.display = x===t?'':'none';
+  });
+}
+
+// ── Salary sub-tab switch ──
+function switchSalTab(t){
+  document.getElementById('salSubEmployers').style.cssText = t==='employers'
+    ? 'padding:8px 18px;border-radius:8px;border:1px solid #3B82F6;background:#3B82F6;color:#fff;cursor:pointer;font-weight:700;font-size:13px;font-family:inherit'
+    : 'padding:8px 18px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;color:#64748B;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit';
+  document.getElementById('salSubProcess').style.cssText = t==='process'
+    ? 'padding:8px 18px;border-radius:8px;border:1px solid #3B82F6;background:#3B82F6;color:#fff;cursor:pointer;font-weight:700;font-size:13px;font-family:inherit'
+    : 'padding:8px 18px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;color:#64748B;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit';
+  document.getElementById('salEmployers').style.display = t==='employers'?'':'none';
+  document.getElementById('salProcess').style.display = t==='process'?'':'none';
+  if(t==='process') populateProcessEmployerSelect();
+}
+
+// ── Load employers from Supabase ──
+async function loadEmployers(){
+  if(!db){ setTimeout(loadEmployers, 500); return; }
+  try {
+    const {data} = await db.from('employers').select('*').order('company_name');
+    procEmployersList = data || [];
+    const sel = document.getElementById('employerSelect');
+    if(sel) sel.innerHTML = '<option value="">-- בחר מעסיק --</option>' +
+      procEmployersList.map(e=>`<option value="${e.company_id}">${e.company_name} (${e.company_id})</option>`).join('');
+  } catch(e){ console.error(e); }
+}
+
+function populateProcessEmployerSelect(){
+  const sel = document.getElementById('processEmployerSelect');
+  sel.innerHTML = '<option value="">-- בחר מעסיק --</option>' +
+    procEmployersList.map(e=>`<option value="${e.company_id}">${e.company_name} (${e.company_id})</option>`).join('');
+}
+
+// ── Add employer ──
+async function addEmployer(){
+  const cid = parseInt(document.getElementById('newEmpCompanyId').value);
+  const name = document.getElementById('newEmpCompanyName').value.trim();
+  if(!cid || !name){ toast('נא למלא מספר חברה ושם'); return; }
+  try {
+    const {error} = await db.from('employers').upsert({company_id:cid, company_name:name});
+    if(error) throw error;
+    document.getElementById('newEmpCompanyId').value='';
+    document.getElementById('newEmpCompanyName').value='';
+    toast('✓ מעסיק נשמר — '+name);
+    loadEmployers();
+  } catch(e){ toast('שגיאה: '+e.message); }
+}
+
+// ── Load employees for selected employer ──
+async function loadEmployees(){
+  const cid = document.getElementById('employerSelect').value;
+  if(!cid){ document.getElementById('employeesTableInner').innerHTML='<div style="padding:16px;color:#94A3B8;font-size:13px">בחר מעסיק כדי לראות עובדים</div>'; return; }
+  try {
+    const {data} = await db.from('employees').select('*').eq('company_id',cid).order('employee_id');
+    procWorkersList = data || [];
+    renderWorkersTable();
+  } catch(e){ console.error(e); }
+}
+
+function renderWorkersTable(){
+  const wrap = document.getElementById('employeesTableInner');
+  if(!procWorkersList.length){
+    wrap.innerHTML='<div style="padding:16px;color:#94A3B8;font-size:13px">אין עובדים — הוסף את העובד הראשון</div>';
+    return;
+  }
+  wrap.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="background:#F8FAFC">
+      <th style="padding:10px 12px;text-align:right;border-bottom:1px solid #E2E8F0">מס׳</th>
+      <th style="padding:10px 12px;text-align:right;border-bottom:1px solid #E2E8F0">שם</th>
+      <th style="padding:10px 12px;text-align:right;border-bottom:1px solid #E2E8F0">ת.ז.</th>
+      <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E2E8F0">סוג</th>
+      <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E2E8F0">תחילת עבודה</th>
+      <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E2E8F0">פעיל</th>
+    </tr></thead>
+    <tbody>
+    ${procWorkersList.map(w=>`<tr style="border-bottom:1px solid #F1F5F9">
+      <td style="padding:9px 12px">${w.employee_id}</td>
+      <td style="padding:9px 12px;font-weight:600">${w.employee_name}</td>
+      <td style="padding:9px 12px;color:#64748B">${w.id_number||'—'}</td>
+      <td style="padding:9px 12px;text-align:center">
+        <span style="background:${w.employee_type==='hourly'?'#EFF6FF':'#F0FDF4'};color:${w.employee_type==='hourly'?'#1D4ED8':'#15803D'};padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700">
+          ${w.employee_type==='hourly'?'שעתי':'גלובלי'}
+        </span>
+      </td>
+      <td style="padding:9px 12px;text-align:center;color:#64748B">${w.start_date||'—'}</td>
+      <td style="padding:9px 12px;text-align:center">${w.active?'✅':'❌'}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ── Add worker ──
+async function addWorker(){
+  const cid = document.getElementById('employerSelect').value;
+  if(!cid){ toast('נא לבחור מעסיק קודם'); return; }
+  const num = parseInt(document.getElementById('newWorkerNum').value);
+  const name = document.getElementById('newWorkerName').value.trim();
+  const idNum = document.getElementById('newWorkerId').value.trim();
+  const start = document.getElementById('newWorkerStart').value;
+  const type = document.getElementById('newWorkerType').value;
+  if(!num || !name){ toast('נא למלא מספר עובד ושם'); return; }
+  try {
+    const {error} = await db.from('employees').upsert({
+      company_id: parseInt(cid), employee_id: num,
+      employee_name: name, id_number: idNum||null,
+      start_date: start||null, employee_type: type, active: true
+    });
+    if(error) throw error;
+    document.getElementById('newWorkerNum').value='';
+    document.getElementById('newWorkerName').value='';
+    document.getElementById('newWorkerId').value='';
+    document.getElementById('newWorkerStart').value='';
+    toast('✓ עובד נוסף — '+name);
+    loadEmployees();
+  } catch(e){ toast('שגיאה: '+e.message); }
+}
+
+// ── File handling ──
+function handleFileDrop(e){
+  e.preventDefault();
+  document.getElementById('uploadArea').style.borderColor='#CBD5E1';
+  document.getElementById('uploadArea').style.background='#FAFCFF';
+  const file = e.dataTransfer.files[0];
+  if(file) processPayrollFile(file);
+}
+
+function handleFileSelect(e){
+  const file = e.target.files[0];
+  if(file) processPayrollFile(file);
+}
+
+async function processPayrollFile(file){
+  const cid = document.getElementById('processEmployerSelect').value;
+  if(!cid){ toast('נא לבחור מעסיק קודם'); return; }
+  const month = document.getElementById('processMonth').value;
+  const year = document.getElementById('processYear').value;
+
+  // Load workers for this employer
+  const {data: workers} = await db.from('employees').select('*').eq('company_id', cid).eq('active', true);
+  procWorkersList = workers || [];
+
+  document.getElementById('aiProcessingArea').style.display='';
+  document.getElementById('aiResultsWrap').style.display='none';
+  document.getElementById('aiStatusIcon').textContent='⏳';
+  document.getElementById('aiStatusText').textContent='קורא את הקובץ...';
+
+  try {
+    // Convert file to base64
+    const base64 = await fileToBase64(file);
+    const isImage = file.type.startsWith('image/');
+    const isPDF = file.type === 'application/pdf';
+    const isExcel = file.name.match(/\.xlsx?$/i);
+
+    const workersList = procWorkersList.map(w=>`${w.employee_id}: ${w.employee_name} (${w.employee_type==='hourly'?'שעתי':'גלובלי'})`).join('\n');
+
+    document.getElementById('aiStatusText').textContent='AI מנתח את הנתונים...';
+
+    let messages;
+    if(isImage || isPDF){
+      messages = [{
+        role:'user',
+        content:[
+          {type: isPDF?'document':'image',
+           source:{type:'base64', media_type: file.type, data: base64}},
+          {type:'text', text: buildAIPrompt(workersList, month, year, file.name)}
+        ]
+      }];
+    } else {
+      // Excel - send as text description
+      messages = [{
+        role:'user',
+        content: buildAIPrompt(workersList, month, year, file.name) + '\n\nשם הקובץ: ' + file.name + '\n(קובץ Excel — נתח לפי שמות העמודות הרלוונטיים)'
+      }];
+    }
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:4000,
+        system: `אתה מערכת לניתוח נתוני שכר לישראל. המשימה שלך היא לחלץ נתוני שכר מקובצים שונים ולהחזיר JSON נקי בלבד ללא כל טקסט נוסף.`,
+        messages
+      })
+    });
+
+    const data = await resp.json();
+    const text = data.content?.map(c=>c.text||'').join('');
+    const clean = text.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+
+    document.getElementById('aiStatusIcon').textContent='✅';
+    document.getElementById('aiStatusText').textContent=`עיבוד הושלם — נמצאו ${parsed.employees?.length||0} עובדים`;
+
+    aiResults = parsed.employees || [];
+    renderAIResults(cid);
+
+  } catch(err){
+    document.getElementById('aiStatusIcon').textContent='❌';
+    document.getElementById('aiStatusText').textContent='שגיאה בעיבוד: '+err.message;
+  }
+}
+
+function buildAIPrompt(workersList, month, year, filename){
+  return `אתה מנתח קובץ נתוני שכר לחודש ${month}/${year}.
+
+רשימת העובדים הרשומים במערכת:
+${workersList}
+
+המשימה:
+1. חלץ את נתוני השכר לכל עובד
+2. אמת שמספר עובד תואם לשם (לפי הרשימה למעלה)
+3. אם מופיע עובד שאינו ברשימה — סמן אותו כ"עובד חדש"
+4. אם יש אי-התאמה בין מספר לשם — סמן כ"אי-התאמה"
+5. אם הקובץ הוא דוח נוכחות גולמי — חשב שעות רגילות, נוספות וחוסר לפי כללי עבודה ישראליים (8 שעות ביום, 43 שעות בשבוע)
+
+החזר JSON בלבד בפורמט הבא:
+{
+  "employees": [
+    {
+      "employee_id": מספר,
+      "employee_name": "שם",
+      "employee_type": "hourly" או "global",
+      "status": "ok" או "new_employee" או "mismatch",
+      "status_note": "הסבר אם status אינו ok",
+      "days_paid": מספר או null,
+      "hours_standard": מספר או null,
+      "days_standard": מספר או null,
+      "hours_actual": מספר או null,
+      "days_actual": מספר או null,
+      "vacation_used": מספר או null,
+      "sick_used": מספר או null,
+      "base_salary": מספר או null,
+      "overtime_125": מספר או null,
+      "overtime_150": מספר או null,
+      "vacation_pay": מספר או null,
+      "sick_pay_50": מספר או null,
+      "sick_pay_100": מספר או null,
+      "holiday_pay": מספר או null,
+      "travel": מספר או null,
+      "bonus": מספר או null,
+      "recuperation": מספר או null,
+      "hours_shortage": מספר או null,
+      "deductions": מספר או null,
+      "advance": מספר או null,
+      "expense_reimbursement": מספר או null
+    }
+  ]
+}`;
+}
+
+function renderAIResults(cid){
+  document.getElementById('aiResultsWrap').style.display='';
+  const warnings = aiResults.filter(e=>e.status!=='ok');
+  const warnEl = document.getElementById('aiWarnings');
+  if(warnings.length){
+    warnEl.innerHTML = warnings.map(w=>`
+      <div style="background:${w.status==='new_employee'?'#FFFBEB':'#FEF2F2'};border:1px solid ${w.status==='new_employee'?'#FDE68A':'#FECACA'};border-radius:8px;padding:10px 14px;margin-bottom:6px;font-size:13px">
+        ${w.status==='new_employee'?'🆕':'⚠️'} <b>${w.employee_name}</b> (${w.employee_id}) — ${w.status_note||w.status}
+        ${w.status==='new_employee'?`<button onclick="quickAddWorker(${cid},${w.employee_id},'${w.employee_name}','${w.employee_type}')" style="margin-right:8px;background:#F59E0B;color:#fff;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px">הוסף למאגר</button>`:''}
+      </div>`).join('');
+  } else { warnEl.innerHTML=''; }
+
+  const tbody = document.getElementById('aiResultsBody');
+  tbody.innerHTML = aiResults.map((e,i)=>{
+    const bg = e.status==='new_employee'?'#FFFBEB':e.status==='mismatch'?'#FEF2F2':'';
+    const fields = ['days_paid','hours_standard','hours_actual','base_salary','overtime_125','overtime_150',
+      'vacation_pay','sick_pay_50','sick_pay_100','holiday_pay','recuperation','travel','bonus','hours_shortage','deductions'];
+    return `<tr style="border-bottom:1px solid #F1F5F9;background:${bg}">
+      <td style="padding:8px 10px;font-weight:700">${e.employee_id}</td>
+      <td style="padding:8px 10px">${e.employee_name}</td>
+      <td style="padding:8px 10px;text-align:center">
+        <span style="background:${e.employee_type==='hourly'?'#EFF6FF':'#F0FDF4'};color:${e.employee_type==='hourly'?'#1D4ED8':'#15803D'};padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700">
+          ${e.employee_type==='hourly'?'שעתי':'גלובלי'}
+        </span>
+      </td>
+      ${['days_paid','hours_standard','hours_actual','base_salary','overtime_125','overtime_150',
+         'vacation_pay','sick_pay_50','sick_pay_100','holiday_pay','recuperation','travel','bonus','hours_shortage','deductions'].map(f=>`
+        <td style="padding:4px 6px;text-align:center">
+          <input type="number" value="${e[f]??''}" 
+            oninput="aiResults[${i}]['${f}']=this.value?parseFloat(this.value):null"
+            style="width:60px;padding:4px;border:1px solid #E2E8F0;border-radius:4px;text-align:center;font-family:inherit;font-size:12px">
+        </td>`).join('')}
+      <td style="padding:8px 10px;text-align:center">
+        <span style="background:${e.status==='ok'?'#F0FDF4':e.status==='new_employee'?'#FFFBEB':'#FEF2F2'};color:${e.status==='ok'?'#15803D':e.status==='new_employee'?'#92400E':'#DC2626'};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">
+          ${e.status==='ok'?'✓ תקין':e.status==='new_employee'?'🆕 חדש':'⚠️ בדוק'}
+        </span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function quickAddWorker(cid, empId, empName, empType){
+  try {
+    await db.from('employees').upsert({
+      company_id:cid, employee_id:empId,
+      employee_name:empName, employee_type:empType||'hourly', active:true
+    });
+    toast('✓ עובד נוסף למאגר — '+empName);
+    const idx = aiResults.findIndex(e=>e.employee_id===empId);
+    if(idx>=0) aiResults[idx].status='ok';
+    renderAIResults(cid);
+  } catch(e){ toast('שגיאה: '+e.message); }
+}
+
+async function saveMonthlyRecords(){
+  const cid = parseInt(document.getElementById('processEmployerSelect').value);
+  const month = parseInt(document.getElementById('processMonth').value);
+  const year = parseInt(document.getElementById('processYear').value);
+  if(!cid){ toast('נא לבחור מעסיק'); return; }
+  try {
+    const records = aiResults.map(e=>({
+      company_id:cid, employee_id:e.employee_id, year, month,
+      days_paid:e.days_paid||null, hours_standard:e.hours_standard||null,
+      days_standard:e.days_standard||null, hours_actual:e.hours_actual||null,
+      days_actual:e.days_actual||null, vacation_used:e.vacation_used||null,
+      sick_used:e.sick_used||null, base_salary:e.base_salary||null,
+      overtime_125:e.overtime_125||null, overtime_150:e.overtime_150||null,
+      vacation_pay:e.vacation_pay||null, sick_pay_50:e.sick_pay_50||null,
+      sick_pay_100:e.sick_pay_100||null, holiday_pay:e.holiday_pay||null,
+      travel:e.travel||null, bonus:e.bonus||null, recuperation:e.recuperation||null,
+      hours_shortage:e.hours_shortage||null, deductions:e.deductions||null,
+      advance:e.advance||null, expense_reimbursement:e.expense_reimbursement||null
+    }));
+    const {error} = await db.from('monthly_records').upsert(records);
+    if(error) throw error;
+    toast('✓ נתוני החודש נשמרו במאגר');
+  } catch(e){ toast('שגיאה בשמירה: '+e.message); }
+}
+
+function exportToMichpal(){
+  const cid = document.getElementById('processEmployerSelect').value;
+  const month = document.getElementById('processMonth').value;
+  const year = document.getElementById('processYear').value;
+  const employer = procEmployersList.find(e=>e.company_id==cid);
+  if(!employer){ toast('נא לבחור מעסיק'); return; }
+
+  // Build CSV in Michpal format
+  let csv = `מספר חברה,שנת מס,חודש\n${cid},${year},${month}\n\n`;
+  csv += 'מספר עובד,שם העובד,ימי עבודה בפועל,שעות בפועל,פוטנציאל ימי עבודה,פוטנציאל שעות,חופש - ניצולים,מחלה - ניצולים,שעות נוספות 125%,שעות נוספות 150%,משכורת בסיס,חג כמות,בונוס,נסיעות,הבראה חודשית,תשלום חופש,תשלום מחלה 50%,תשלום מחלה 100%,שעות חוסר\n';
+  
+  aiResults.forEach(e=>{
+    csv += [
+      e.employee_id, e.employee_name,
+      e.days_actual||'', e.hours_actual||'',
+      e.days_standard||'', e.hours_standard||'',
+      e.vacation_used||'', e.sick_used||'',
+      e.overtime_125||'', e.overtime_150||'',
+      e.base_salary||'', e.holiday_pay||'',
+      e.bonus||'', e.travel||'',
+      e.recuperation||'', e.vacation_pay||'',
+      e.sick_pay_50||'', e.sick_pay_100||'',
+      e.hours_shortage||''
+    ].join(',') + '\n';
+  });
+
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url;
+  a.download=`michpal_${employer.company_name}_${month}_${year}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('✓ קובץ קליטה הורד — '+employer.company_name);
+}
+
+function fileToBase64(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result.split(',')[1]);
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// ── Init processing tab ──
+document.getElementById('mainProcessing').style.display='none';
+document.getElementById('procVat').style.display='none';
+document.getElementById('procYear').style.display='none';
+
+
 // Init sub-nav visibility
 document.getElementById('monthlySubNav').style.display='';
 document.getElementById('mainClose').style.display='none';
