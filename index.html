@@ -2489,15 +2489,31 @@ function getCoCompanies(){
     return true;
   });
 }
+let _masterClientListCache = null;
+function buildMasterClientList(){
+  const seen = new Set();
+  const list = [];
+  Object.keys(DATA||{}).forEach(month=>{
+    ['v','s'].forEach(k=>{
+      ((DATA[month]&&DATA[month][k])||[]).forEach(r=>{
+        if(!seen.has(r[0])){ seen.add(r[0]); list.push(r); }
+      });
+    });
+  });
+  return list;
+}
 function getRawRowsForTab(tab){
   if(tab==='sal'){
     return getRawRowsForTab('vat').filter(row => getClientData(row[0]).isEmployer === 'כן');
   }
-  const d = DATA[MONTHS[MONTHS.length-1]];
-  const base = [...(d.v||[])];
+  // "לקוחות" הוא עכשיו איחוד אמיתי של כל לקוח שהופיע אי-פעם בכל חודש
+  // (גם אם רק בגיליון שכר של חודש ישן, לא רק בגיליון מע"מ של החודש האחרון)
+  if(!_masterClientListCache) _masterClientListCache = buildMasterClientList();
+  const base = [..._masterClientListCache];
   const perMonth = LSG('bl_custom_per_month')||{};
-  const custom = perMonth[MONTHS[MONTHS.length-1]]||{};
-  Object.values(custom).forEach(row=>{ if(!base.find(r=>r[0]===row[0])) base.push(row); });
+  Object.values(perMonth).forEach(monthObj=>{
+    Object.values(monthObj||{}).forEach(row=>{ if(!base.find(r=>r[0]===row[0])) base.push(row); });
+  });
   return base;
 }
 
