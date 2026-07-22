@@ -2473,7 +2473,8 @@ function getRawRowsForTab(tab){
   Object.values(custom).forEach(row=>{ if(!base.find(r=>r[0]===row[0])) base.push(row); });
   if(tab==='sal'){
     // מעסיק שסומן במפורש "לא" בכרטיס הלקוח לא אמור להופיע יותר בגיליון שכר
-    return base.filter(row => getClientData(row[0]).isEmployer !== 'לא');
+    // (משתמשים בהתאמה גמישה כדי לתפוס גם הבדלי כתיב קטנים בין הגיליונות)
+    return base.filter(row => getClientDataFuzzy(row[0]).isEmployer !== 'לא');
   }
   return base;
 }
@@ -2624,6 +2625,24 @@ function editClosingNote(clientName, itemId, label){
 // ══════════════════════════
 function getClientData(clientName){
   return LSG('bl_cdata_'+clientName.replace(/[^א-ת\w]/g,'_').slice(0,50)) || {};
+}
+// כמו getClientData, אבל אם אין נתונים תחת השם המדויק (למשל כתיב שונה בין
+// גיליון "שכר" לגיליון "לקוחות" — עם/בלי בע"מ, רווח כפול וכו') מנסה למצוא
+// את אותו לקוח לפי התאמה חלקית (תחילית) מול רשימת הלקוחות הראשית.
+function getClientDataFuzzy(clientName){
+  let cd = getClientData(clientName);
+  if(cd && cd.isEmployer) return cd;
+  const name = (clientName||'').trim();
+  const vatRows = getRawRowsForTab('vat');
+  const match = vatRows.find(r=>{
+    const vn=(r[0]||'').trim();
+    return vn===name || name.startsWith(vn) || vn.startsWith(name);
+  });
+  if(match){
+    const cd2 = getClientData(match[0]);
+    if(cd2 && cd2.isEmployer) return cd2;
+  }
+  return cd;
 }
 function saveClientData(clientName, data){
   LSS('bl_cdata_'+clientName.replace(/[^א-ת\w]/g,'_').slice(0,50), data);
