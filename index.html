@@ -909,12 +909,29 @@ function toggleCheck(month, tab, row, idx){
 }
 
 // ── Rows ──
+// עבור לקוח נתון, מוצא את שורת ה"שכר" האמיתית שלו (עמודות הצ'קבוקסים
+// הנכונות לגיליון שכר) - קודם מהחודש הנוכחי, אחרת מהחודש האחרון שבו
+// הופיע בגיליון שכר, ואם מעולם לא הופיע שם - שורה נקייה עם הכל "לא סומן"
+// (ולא שאילת עמודות מה"מ בטעות, שהמשמעות שלהן שונה לגמרי).
+function findSalRowForClient(name){
+  const cur = (DATA[curMonth] && DATA[curMonth].s) || [];
+  let hit = cur.find(r => r[0] === name);
+  if(hit) return hit;
+  for(let i = MONTHS.length - 1; i >= 0; i--){
+    const arr = (DATA[MONTHS[i]] && DATA[MONTHS[i]].s) || [];
+    hit = arr.find(r => r[0] === name);
+    if(hit) return hit;
+  }
+  return null;
+}
 function getRawRows(){
   if(curTab === 'sal'){
     // גיליון שכר נשען ישירות על טאב הלקוחות הראשי: כל מי שכרטיס הלקוח שלו
     // מסומן "מעסיק = כן" יופיע כאן אוטומטית - כולל לקוחות חדשים שיתווספו
     // בעתיד. אין יותר הסתמכות על התאמת שם בין גיליונות.
-    return getRawRowsForTab('vat').filter(row => getClientData(row[0]).isEmployer === 'כן');
+    return getRawRowsForTab('vat')
+      .filter(row => getClientData(row[0]).isEmployer === 'כן')
+      .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
   }
   const d = DATA[curMonth];
   const base = [...(d.v || [])];
@@ -2489,7 +2506,9 @@ function buildMasterClientList(){
 }
 function getRawRowsForTab(tab){
   if(tab==='sal'){
-    return getRawRowsForTab('vat').filter(row => getClientData(row[0]).isEmployer === 'כן');
+    return getRawRowsForTab('vat')
+      .filter(row => getClientData(row[0]).isEmployer === 'כן')
+      .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
   }
   // "לקוחות" הוא עכשיו איחוד אמיתי של כל לקוח שהופיע אי-פעם בכל חודש
   // (גם אם רק בגיליון שכר של חודש ישן, לא רק בגיליון מע"מ של החודש האחרון)
