@@ -2472,9 +2472,9 @@ function getRawRowsForTab(tab){
   const custom = perMonth[MONTHS[MONTHS.length-1]]||{};
   Object.values(custom).forEach(row=>{ if(!base.find(r=>r[0]===row[0])) base.push(row); });
   if(tab==='sal'){
-    // מעסיק שסומן במפורש "לא" בכרטיס הלקוח לא אמור להופיע יותר בגיליון שכר
-    // (משתמשים בהתאמה גמישה כדי לתפוס גם הבדלי כתיב קטנים בין הגיליונות)
-    return base.filter(row => getClientDataFuzzy(row[0]).isEmployer !== 'לא');
+    // רק מי שמסומן במפורש "מעסיק = כן" בכרטיס הלקוח מופיע בגיליון שכר
+    // (רשימה חיובית, לא שלילית - כך שלקוחות שהשדה אצלם עדיין ריק לא "יישארו" בטעות)
+    return base.filter(row => getClientDataFuzzy(row[0]).isEmployer === 'כן');
   }
   return base;
 }
