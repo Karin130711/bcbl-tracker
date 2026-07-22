@@ -259,7 +259,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <div class="main-tab active" id="mainTabMonthly" onclick="switchMainTab('monthly')">📅 חודש שוטף</div>
     <div class="main-tab" id="mainTabClose" onclick="switchMainTab('close')">📊 סגירות שנתיות</div>
     <div class="main-tab" id="mainTabClients" onclick="switchMainTab('clients')">👥 לקוחות</div>
-    <div class="main-tab" id="mainTabProcessing" onclick="switchMainTab('processing')">⚙️ עיבוד נתונים</div>
+    <div class="main-tab" id="mainTabProc" onclick="switchMainTab('proc')">⚙️ עיבוד נתונים</div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;padding:0 16px 0 0">
     <span id="syncIndicator" style="display:flex;align-items:center;font-size:11px;color:var(--text3)">
@@ -528,54 +528,25 @@ tbody td:first-child{padding-right:10px;text-align:right}
     </table>
 </div>
 
-
 <!-- ══ עיבוד נתונים ══ -->
-<div id="mainProcessing" style="display:none">
-  <!-- Processing sub-nav -->
+<div id="mainProc" style="display:none">
   <div style="background:#fff;border-bottom:2px solid #E2E8F0;display:flex;align-items:center;padding:0 16px">
     <div class="sheet-tab active" id="procTabSal" onclick="switchProcTab('sal')" style="font-size:13px;padding:10px 20px">💰 שכר</div>
     <div class="sheet-tab" id="procTabVat" onclick="switchProcTab('vat')" style="font-size:13px;padding:10px 20px">🧾 מע"מ</div>
-    <div class="sheet-tab" id="procTabCtrl" onclick="switchProcTab('ctrl')" style="font-size:13px;padding:10px 20px">✅ בקרות</div>
     <div class="sheet-tab" id="procTabYear" onclick="switchProcTab('year')" style="font-size:13px;padding:10px 20px">📊 דוחות שנתיים</div>
     <div class="sheet-tab" id="procTabMisc" onclick="switchProcTab('misc')" style="font-size:13px;padding:10px 20px">📋 שונות</div>
+    <div class="sheet-tab" id="procTabCtrl" onclick="switchProcTab('ctrl')" style="font-size:13px;padding:10px 20px">✅ בקרות</div>
+    <div class="sheet-tab" id="procTabSign" onclick="switchProcTab('sign')" style="font-size:13px;padding:10px 20px">🟢 חתימה ירוקה</div>
   </div>
-
-  <!-- שכר -->
-  <div id="procSal" style="padding:30px;direction:rtl">
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">💰 עיבוד נתוני שכר</div>
-    <div style="color:#64748B;font-size:14px">כאן תוכלי להעלות קבצי שכר מלקוחות ולייצר קבצי קליטה למיכפל.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
-  </div>
-
-  <!-- מע"מ -->
-  <div id="procVat" style="display:none;padding:30px;direction:rtl">
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">🧾 עיבוד נתוני מע"מ</div>
-    <div style="color:#64748B;font-size:14px">כאן תוכלי לעבד דוחות מע"מ.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
-  </div>
-
-  <!-- בקרות -->
-  <div id="procCtrl" style="display:none;padding:30px;direction:rtl">
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">✅ בקרות</div>
-    <div style="color:#64748B;font-size:14px">בקרות ואימותים על נתוני השכר והחשבונות.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
-  </div>
-
-  <!-- דוחות שנתיים -->
-  <div id="procYear" style="display:none;padding:30px;direction:rtl">
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">📊 דוחות שנתיים</div>
-    <div style="color:#64748B;font-size:14px">כאן תוכלי לעבד דוחות שנתיים.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
-  </div>
-
-  <!-- שונות -->
-  <div id="procMisc" style="display:none;padding:30px;direction:rtl">
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1E293B">📋 שונות</div>
-    <div style="color:#64748B;font-size:14px">טפסים ומסמכים שונים.</div>
-    <div style="margin-top:24px;padding:40px;border:2px dashed #CBD5E1;border-radius:12px;text-align:center;color:#94A3B8">🚧 בבנייה — בקרוב</div>
-  </div>
+  <div id="procSal" style="padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">💰 שכר</div><div style="color:#64748B;font-size:13px">עיבוד נתוני שכר וקליטה למיכפל — בקרוב</div></div>
+  <div id="procVat" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">🧾 מע"מ</div><div style="color:#64748B;font-size:13px">עיבוד דוחות מע"מ — בקרוב</div></div>
+  <div id="procYear" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">📊 דוחות שנתיים</div><div style="color:#64748B;font-size:13px">עיבוד דוחות שנתיים — בקרוב</div></div>
+  <div id="procMisc" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">📋 שונות</div><div style="color:#64748B;font-size:13px">טפסים ומסמכים שונים — בקרוב</div></div>
+  <div id="procCtrl" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">✅ בקרות</div><div style="color:#64748B;font-size:13px">בקרות ואימותים — בקרוב</div></div>
+  <div id="procSign" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">🟢 חתימה ירוקה</div><div style="color:#64748B;font-size:13px">ניהול חתימות ירוקות — בקרוב</div></div>
 </div>
-<div class="overlay" id="fileNoteModal">
+
+
   <div class="modal" style="width:520px">
     <button class="modal-close" onclick="closeModal('fileNoteModal')">✕</button>
     <h2 id="fnTitle">📝 הערות תיק</h2>
@@ -1326,24 +1297,17 @@ let curMainTab = 'monthly';
 
 function switchMainTab(m){
   curMainTab = m;
-  ['mainTabMonthly','mainTabClose','mainTabClients','mainTabProcessing'].forEach(id=>{
+  ['mainTabMonthly','mainTabClose','mainTabClients','mainTabProc'].forEach(id=>{
     document.getElementById(id).className='main-tab'+(id==='mainTab'+m.charAt(0).toUpperCase()+m.slice(1)?' active':'');
   });
   document.getElementById('monthlySubNav').style.display = m==='monthly' ? '' : 'none';
   document.getElementById('mainVat').style.display = m==='monthly' ? '' : 'none';
   document.getElementById('mainClose').style.display = m==='close' ? '' : 'none';
   document.getElementById('mainClients').style.display = m==='clients' ? '' : 'none';
-  document.getElementById('mainProcessing').style.display = m==='processing' ? '' : 'none';
+  document.getElementById('mainProc').style.display = m==='proc' ? '' : 'none';
   if(m==='monthly'){ updateStats(); renderTable(); }
   if(m==='close'){ renderYearTabs(); renderCoList(); }
   if(m==='clients'){ renderClientsTable(); populateClientsAcctFilter(); }
-  if(m==='processing'){ 
-    document.getElementById('procSal').style.display='';
-    document.getElementById('procVat').style.display='none';
-    document.getElementById('procCtrl').style.display='none';
-    document.getElementById('procYear').style.display='none';
-    document.getElementById('procMisc').style.display='none';
-  }
 }
 
 function switchTab(t){
@@ -2507,6 +2471,10 @@ function getRawRowsForTab(tab){
   const perMonth = LSG('bl_custom_per_month')||{};
   const custom = perMonth[MONTHS[MONTHS.length-1]]||{};
   Object.values(custom).forEach(row=>{ if(!base.find(r=>r[0]===row[0])) base.push(row); });
+  if(tab==='sal'){
+    // מעסיק שסומן במפורש "לא" בכרטיס הלקוח לא אמור להופיע יותר בגיליון שכר
+    return base.filter(row => getClientData(row[0]).isEmployer !== 'לא');
+  }
   return base;
 }
 
@@ -2960,404 +2928,20 @@ renderMonthNav();
 updateAcctFilters();
 // ══════════════════════════════════════════
 // עיבוד נתונים — PROCESSING TAB LOGIC
-// ══════════════════════════════════════════
 
-let procEmployersList = [];
-let procWorkersList = [];
-let aiResults = [];
-
+// ── Processing sub-tab switch ──
 function switchProcTab(t){
-  ['sal','vat','ctrl','year','misc'].forEach(x=>{
+  ['sal','vat','year','misc','ctrl','sign'].forEach(x=>{
     document.getElementById('procTab'+x.charAt(0).toUpperCase()+x.slice(1)).className='sheet-tab'+(x===t?' active':'');
     document.getElementById('proc'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=x===t?'':'none';
   });
 }
 
-// ── Salary sub-tab switch ──
-function switchSalTab(t){
-  document.getElementById('salSubEmployers').style.cssText = t==='employers'
-    ? 'padding:8px 18px;border-radius:8px;border:1px solid #3B82F6;background:#3B82F6;color:#fff;cursor:pointer;font-weight:700;font-size:13px;font-family:inherit'
-    : 'padding:8px 18px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;color:#64748B;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit';
-  document.getElementById('salSubProcess').style.cssText = t==='process'
-    ? 'padding:8px 18px;border-radius:8px;border:1px solid #3B82F6;background:#3B82F6;color:#fff;cursor:pointer;font-weight:700;font-size:13px;font-family:inherit'
-    : 'padding:8px 18px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;color:#64748B;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit';
-  document.getElementById('salEmployers').style.display = t==='employers'?'':'none';
-  document.getElementById('salProcess').style.display = t==='process'?'':'none';
-  if(t==='process') populateProcessEmployerSelect();
-}
-
-// ── Load employers from Supabase ──
-async function loadEmployers(){
-  if(!db){ setTimeout(loadEmployers, 500); return; }
-  try {
-    const {data} = await db.from('employers').select('*').order('company_name');
-    procEmployersList = data || [];
-    const sel = document.getElementById('employerSelect');
-    if(sel) sel.innerHTML = '<option value="">-- בחר מעסיק --</option>' +
-      procEmployersList.map(e=>`<option value="${e.company_id}">${e.company_name} (${e.company_id})</option>`).join('');
-  } catch(e){ console.error(e); }
-}
-
-function populateProcessEmployerSelect(){
-  const sel = document.getElementById('processEmployerSelect');
-  sel.innerHTML = '<option value="">-- בחר מעסיק --</option>' +
-    procEmployersList.map(e=>`<option value="${e.company_id}">${e.company_name} (${e.company_id})</option>`).join('');
-}
-
-// ── Add employer ──
-async function addEmployer(){
-  const cid = parseInt(document.getElementById('newEmpCompanyId').value);
-  const name = document.getElementById('newEmpCompanyName').value.trim();
-  if(!cid || !name){ toast('נא למלא מספר חברה ושם'); return; }
-  try {
-    const {error} = await db.from('employers').upsert({company_id:cid, company_name:name});
-    if(error) throw error;
-    document.getElementById('newEmpCompanyId').value='';
-    document.getElementById('newEmpCompanyName').value='';
-    toast('✓ מעסיק נשמר — '+name);
-    loadEmployers();
-  } catch(e){ toast('שגיאה: '+e.message); }
-}
-
-// ── Load employees for selected employer ──
-async function loadEmployees(){
-  const cid = document.getElementById('employerSelect').value;
-  if(!cid){ document.getElementById('employeesTableInner').innerHTML='<div style="padding:16px;color:#94A3B8;font-size:13px">בחר מעסיק כדי לראות עובדים</div>'; return; }
-  try {
-    const {data} = await db.from('employees').select('*').eq('company_id',cid).order('employee_id');
-    procWorkersList = data || [];
-    renderWorkersTable();
-  } catch(e){ console.error(e); }
-}
-
-function renderWorkersTable(){
-  const wrap = document.getElementById('employeesTableInner');
-  if(!procWorkersList.length){
-    wrap.innerHTML='<div style="padding:16px;color:#94A3B8;font-size:13px">אין עובדים — הוסף את העובד הראשון</div>';
-    return;
-  }
-  wrap.innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="background:#F8FAFC">
-      <th style="padding:10px 12px;text-align:right;border-bottom:1px solid #E2E8F0">מס׳</th>
-      <th style="padding:10px 12px;text-align:right;border-bottom:1px solid #E2E8F0">שם</th>
-      <th style="padding:10px 12px;text-align:right;border-bottom:1px solid #E2E8F0">ת.ז.</th>
-      <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E2E8F0">סוג</th>
-      <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E2E8F0">תחילת עבודה</th>
-      <th style="padding:10px 12px;text-align:center;border-bottom:1px solid #E2E8F0">פעיל</th>
-    </tr></thead>
-    <tbody>
-    ${procWorkersList.map(w=>`<tr style="border-bottom:1px solid #F1F5F9">
-      <td style="padding:9px 12px">${w.employee_id}</td>
-      <td style="padding:9px 12px;font-weight:600">${w.employee_name}</td>
-      <td style="padding:9px 12px;color:#64748B">${w.id_number||'—'}</td>
-      <td style="padding:9px 12px;text-align:center">
-        <span style="background:${w.employee_type==='hourly'?'#EFF6FF':'#F0FDF4'};color:${w.employee_type==='hourly'?'#1D4ED8':'#15803D'};padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700">
-          ${w.employee_type==='hourly'?'שעתי':'גלובלי'}
-        </span>
-      </td>
-      <td style="padding:9px 12px;text-align:center;color:#64748B">${w.start_date||'—'}</td>
-      <td style="padding:9px 12px;text-align:center">${w.active?'✅':'❌'}</td>
-    </tr>`).join('')}
-    </tbody>
-  </table></div>`;
-}
-
-// ── Add worker ──
-async function addWorker(){
-  const cid = document.getElementById('employerSelect').value;
-  if(!cid){ toast('נא לבחור מעסיק קודם'); return; }
-  const num = parseInt(document.getElementById('newWorkerNum').value);
-  const name = document.getElementById('newWorkerName').value.trim();
-  const idNum = document.getElementById('newWorkerId').value.trim();
-  const start = document.getElementById('newWorkerStart').value;
-  const type = document.getElementById('newWorkerType').value;
-  if(!num || !name){ toast('נא למלא מספר עובד ושם'); return; }
-  try {
-    const {error} = await db.from('employees').upsert({
-      company_id: parseInt(cid), employee_id: num,
-      employee_name: name, id_number: idNum||null,
-      start_date: start||null, employee_type: type, active: true
-    });
-    if(error) throw error;
-    document.getElementById('newWorkerNum').value='';
-    document.getElementById('newWorkerName').value='';
-    document.getElementById('newWorkerId').value='';
-    document.getElementById('newWorkerStart').value='';
-    toast('✓ עובד נוסף — '+name);
-    loadEmployees();
-  } catch(e){ toast('שגיאה: '+e.message); }
-}
-
-// ── File handling ──
-function handleFileDrop(e){
-  e.preventDefault();
-  document.getElementById('uploadArea').style.borderColor='#CBD5E1';
-  document.getElementById('uploadArea').style.background='#FAFCFF';
-  const file = e.dataTransfer.files[0];
-  if(file) processPayrollFile(file);
-}
-
-function handleFileSelect(e){
-  const file = e.target.files[0];
-  if(file) processPayrollFile(file);
-}
-
-async function processPayrollFile(file){
-  const cid = document.getElementById('processEmployerSelect').value;
-  if(!cid){ toast('נא לבחור מעסיק קודם'); return; }
-  const month = document.getElementById('processMonth').value;
-  const year = document.getElementById('processYear').value;
-
-  // Load workers for this employer
-  const {data: workers} = await db.from('employees').select('*').eq('company_id', cid).eq('active', true);
-  procWorkersList = workers || [];
-
-  document.getElementById('aiProcessingArea').style.display='';
-  document.getElementById('aiResultsWrap').style.display='none';
-  document.getElementById('aiStatusIcon').textContent='⏳';
-  document.getElementById('aiStatusText').textContent='קורא את הקובץ...';
-
-  try {
-    // Convert file to base64
-    const base64 = await fileToBase64(file);
-    const isImage = file.type.startsWith('image/');
-    const isPDF = file.type === 'application/pdf';
-    const isExcel = file.name.match(/\.xlsx?$/i);
-
-    const workersList = procWorkersList.map(w=>`${w.employee_id}: ${w.employee_name} (${w.employee_type==='hourly'?'שעתי':'גלובלי'})`).join('\n');
-
-    document.getElementById('aiStatusText').textContent='AI מנתח את הנתונים...';
-
-    let messages;
-    if(isImage || isPDF){
-      messages = [{
-        role:'user',
-        content:[
-          {type: isPDF?'document':'image',
-           source:{type:'base64', media_type: file.type, data: base64}},
-          {type:'text', text: buildAIPrompt(workersList, month, year, file.name)}
-        ]
-      }];
-    } else {
-      // Excel - send as text description
-      messages = [{
-        role:'user',
-        content: buildAIPrompt(workersList, month, year, file.name) + '\n\nשם הקובץ: ' + file.name + '\n(קובץ Excel — נתח לפי שמות העמודות הרלוונטיים)'
-      }];
-    }
-
-    const resp = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:4000,
-        system: `אתה מערכת לניתוח נתוני שכר לישראל. המשימה שלך היא לחלץ נתוני שכר מקובצים שונים ולהחזיר JSON נקי בלבד ללא כל טקסט נוסף.`,
-        messages
-      })
-    });
-
-    const data = await resp.json();
-    const text = data.content?.map(c=>c.text||'').join('');
-    const clean = text.replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(clean);
-
-    document.getElementById('aiStatusIcon').textContent='✅';
-    document.getElementById('aiStatusText').textContent=`עיבוד הושלם — נמצאו ${parsed.employees?.length||0} עובדים`;
-
-    aiResults = parsed.employees || [];
-    renderAIResults(cid);
-
-  } catch(err){
-    document.getElementById('aiStatusIcon').textContent='❌';
-    document.getElementById('aiStatusText').textContent='שגיאה בעיבוד: '+err.message;
-  }
-}
-
-function buildAIPrompt(workersList, month, year, filename){
-  return `אתה מנתח קובץ נתוני שכר לחודש ${month}/${year}.
-
-רשימת העובדים הרשומים במערכת:
-${workersList}
-
-המשימה:
-1. חלץ את נתוני השכר לכל עובד
-2. אמת שמספר עובד תואם לשם (לפי הרשימה למעלה)
-3. אם מופיע עובד שאינו ברשימה — סמן אותו כ"עובד חדש"
-4. אם יש אי-התאמה בין מספר לשם — סמן כ"אי-התאמה"
-5. אם הקובץ הוא דוח נוכחות גולמי — חשב שעות רגילות, נוספות וחוסר לפי כללי עבודה ישראליים (8 שעות ביום, 43 שעות בשבוע)
-
-החזר JSON בלבד בפורמט הבא:
-{
-  "employees": [
-    {
-      "employee_id": מספר,
-      "employee_name": "שם",
-      "employee_type": "hourly" או "global",
-      "status": "ok" או "new_employee" או "mismatch",
-      "status_note": "הסבר אם status אינו ok",
-      "days_paid": מספר או null,
-      "hours_standard": מספר או null,
-      "days_standard": מספר או null,
-      "hours_actual": מספר או null,
-      "days_actual": מספר או null,
-      "vacation_used": מספר או null,
-      "sick_used": מספר או null,
-      "base_salary": מספר או null,
-      "overtime_125": מספר או null,
-      "overtime_150": מספר או null,
-      "vacation_pay": מספר או null,
-      "sick_pay_50": מספר או null,
-      "sick_pay_100": מספר או null,
-      "holiday_pay": מספר או null,
-      "travel": מספר או null,
-      "bonus": מספר או null,
-      "recuperation": מספר או null,
-      "hours_shortage": מספר או null,
-      "deductions": מספר או null,
-      "advance": מספר או null,
-      "expense_reimbursement": מספר או null
-    }
-  ]
-}`;
-}
-
-function renderAIResults(cid){
-  document.getElementById('aiResultsWrap').style.display='';
-  const warnings = aiResults.filter(e=>e.status!=='ok');
-  const warnEl = document.getElementById('aiWarnings');
-  if(warnings.length){
-    warnEl.innerHTML = warnings.map(w=>`
-      <div style="background:${w.status==='new_employee'?'#FFFBEB':'#FEF2F2'};border:1px solid ${w.status==='new_employee'?'#FDE68A':'#FECACA'};border-radius:8px;padding:10px 14px;margin-bottom:6px;font-size:13px">
-        ${w.status==='new_employee'?'🆕':'⚠️'} <b>${w.employee_name}</b> (${w.employee_id}) — ${w.status_note||w.status}
-        ${w.status==='new_employee'?`<button onclick="quickAddWorker(${cid},${w.employee_id},'${w.employee_name}','${w.employee_type}')" style="margin-right:8px;background:#F59E0B;color:#fff;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:11px">הוסף למאגר</button>`:''}
-      </div>`).join('');
-  } else { warnEl.innerHTML=''; }
-
-  const tbody = document.getElementById('aiResultsBody');
-  tbody.innerHTML = aiResults.map((e,i)=>{
-    const bg = e.status==='new_employee'?'#FFFBEB':e.status==='mismatch'?'#FEF2F2':'';
-    const fields = ['days_paid','hours_standard','hours_actual','base_salary','overtime_125','overtime_150',
-      'vacation_pay','sick_pay_50','sick_pay_100','holiday_pay','recuperation','travel','bonus','hours_shortage','deductions'];
-    return `<tr style="border-bottom:1px solid #F1F5F9;background:${bg}">
-      <td style="padding:8px 10px;font-weight:700">${e.employee_id}</td>
-      <td style="padding:8px 10px">${e.employee_name}</td>
-      <td style="padding:8px 10px;text-align:center">
-        <span style="background:${e.employee_type==='hourly'?'#EFF6FF':'#F0FDF4'};color:${e.employee_type==='hourly'?'#1D4ED8':'#15803D'};padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700">
-          ${e.employee_type==='hourly'?'שעתי':'גלובלי'}
-        </span>
-      </td>
-      ${['days_paid','hours_standard','hours_actual','base_salary','overtime_125','overtime_150',
-         'vacation_pay','sick_pay_50','sick_pay_100','holiday_pay','recuperation','travel','bonus','hours_shortage','deductions'].map(f=>`
-        <td style="padding:4px 6px;text-align:center">
-          <input type="number" value="${e[f]??''}" 
-            oninput="aiResults[${i}]['${f}']=this.value?parseFloat(this.value):null"
-            style="width:60px;padding:4px;border:1px solid #E2E8F0;border-radius:4px;text-align:center;font-family:inherit;font-size:12px">
-        </td>`).join('')}
-      <td style="padding:8px 10px;text-align:center">
-        <span style="background:${e.status==='ok'?'#F0FDF4':e.status==='new_employee'?'#FFFBEB':'#FEF2F2'};color:${e.status==='ok'?'#15803D':e.status==='new_employee'?'#92400E':'#DC2626'};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">
-          ${e.status==='ok'?'✓ תקין':e.status==='new_employee'?'🆕 חדש':'⚠️ בדוק'}
-        </span>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-async function quickAddWorker(cid, empId, empName, empType){
-  try {
-    await db.from('employees').upsert({
-      company_id:cid, employee_id:empId,
-      employee_name:empName, employee_type:empType||'hourly', active:true
-    });
-    toast('✓ עובד נוסף למאגר — '+empName);
-    const idx = aiResults.findIndex(e=>e.employee_id===empId);
-    if(idx>=0) aiResults[idx].status='ok';
-    renderAIResults(cid);
-  } catch(e){ toast('שגיאה: '+e.message); }
-}
-
-async function saveMonthlyRecords(){
-  const cid = parseInt(document.getElementById('processEmployerSelect').value);
-  const month = parseInt(document.getElementById('processMonth').value);
-  const year = parseInt(document.getElementById('processYear').value);
-  if(!cid){ toast('נא לבחור מעסיק'); return; }
-  try {
-    const records = aiResults.map(e=>({
-      company_id:cid, employee_id:e.employee_id, year, month,
-      days_paid:e.days_paid||null, hours_standard:e.hours_standard||null,
-      days_standard:e.days_standard||null, hours_actual:e.hours_actual||null,
-      days_actual:e.days_actual||null, vacation_used:e.vacation_used||null,
-      sick_used:e.sick_used||null, base_salary:e.base_salary||null,
-      overtime_125:e.overtime_125||null, overtime_150:e.overtime_150||null,
-      vacation_pay:e.vacation_pay||null, sick_pay_50:e.sick_pay_50||null,
-      sick_pay_100:e.sick_pay_100||null, holiday_pay:e.holiday_pay||null,
-      travel:e.travel||null, bonus:e.bonus||null, recuperation:e.recuperation||null,
-      hours_shortage:e.hours_shortage||null, deductions:e.deductions||null,
-      advance:e.advance||null, expense_reimbursement:e.expense_reimbursement||null
-    }));
-    const {error} = await db.from('monthly_records').upsert(records);
-    if(error) throw error;
-    toast('✓ נתוני החודש נשמרו במאגר');
-  } catch(e){ toast('שגיאה בשמירה: '+e.message); }
-}
-
-function exportToMichpal(){
-  const cid = document.getElementById('processEmployerSelect').value;
-  const month = document.getElementById('processMonth').value;
-  const year = document.getElementById('processYear').value;
-  const employer = procEmployersList.find(e=>e.company_id==cid);
-  if(!employer){ toast('נא לבחור מעסיק'); return; }
-
-  // Build CSV in Michpal format
-  let csv = `מספר חברה,שנת מס,חודש\n${cid},${year},${month}\n\n`;
-  csv += 'מספר עובד,שם העובד,ימי עבודה בפועל,שעות בפועל,פוטנציאל ימי עבודה,פוטנציאל שעות,חופש - ניצולים,מחלה - ניצולים,שעות נוספות 125%,שעות נוספות 150%,משכורת בסיס,חג כמות,בונוס,נסיעות,הבראה חודשית,תשלום חופש,תשלום מחלה 50%,תשלום מחלה 100%,שעות חוסר\n';
-  
-  aiResults.forEach(e=>{
-    csv += [
-      e.employee_id, e.employee_name,
-      e.days_actual||'', e.hours_actual||'',
-      e.days_standard||'', e.hours_standard||'',
-      e.vacation_used||'', e.sick_used||'',
-      e.overtime_125||'', e.overtime_150||'',
-      e.base_salary||'', e.holiday_pay||'',
-      e.bonus||'', e.travel||'',
-      e.recuperation||'', e.vacation_pay||'',
-      e.sick_pay_50||'', e.sick_pay_100||'',
-      e.hours_shortage||''
-    ].join(',') + '\n';
-  });
-
-  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href=url;
-  a.download=`michpal_${employer.company_name}_${month}_${year}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('✓ קובץ קליטה הורד — '+employer.company_name);
-}
-
-function fileToBase64(file){
-  return new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=()=>res(r.result.split(',')[1]);
-    r.onerror=rej;
-    r.readAsDataURL(file);
-  });
-}
-
-// ── Init processing tab ──
-document.getElementById('mainProcessing').style.display='none';
-document.getElementById('procVat').style.display='none';
-document.getElementById('procCtrl').style.display='none';
-document.getElementById('procYear').style.display='none';
-document.getElementById('procMisc').style.display='none';
-
-
 // Init sub-nav visibility
 document.getElementById('monthlySubNav').style.display='';
 document.getElementById('mainClose').style.display='none';
 document.getElementById('mainClients').style.display='none';
+document.getElementById('mainProc').style.display='none';
 // Init closing years
 if(!LSG('bl_years')) LSS('bl_years',['2024','2025']);
 // Pre-load client data from Excel
