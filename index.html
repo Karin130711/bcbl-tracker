@@ -1106,7 +1106,11 @@ function _renderTable(){
     const acol = _acol || '#888';
     return `<tr>
       <td style="padding:8px 12px">
-        <div class="nm">${row[0]}</div>
+        <div class="nm">${row[0]}${curTab==='sal' ? (()=>{
+          const cdEmp = getClientDataFuzzy(row[0]);
+          const isEmp = cdEmp.isEmployer==='כן';
+          return ` <span class="emp-toggle" data-rowidx="${start+rowIdx}" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:6px;margin-inline-start:6px;${isEmp?'background:#F0FDF4;color:#16A34A;border:1px solid #86EFAC':'background:#F1F5F9;color:#94A3B8;border:1px solid #E2E8F0'}" title="לחצי לסימון/ביטול מעסיק ישירות עבור שורה זו">👔 ${isEmp?'מעסיק':'לא מעסיק'}</span>`;
+        })() : ''}</div>
         <div class="tp">${(()=>{const cd=getClientData(row[0]);const tp=cd.typeOverride||row[1]||'';const tx=cd.taxId||'';return tp+(tx?' · <span style="color:var(--accent)">'+tx+'</span>':'');})()}</div>
       </td>
       <td style="text-align:center">
@@ -1231,6 +1235,21 @@ document.addEventListener('click', function(e){
 });
 
 document.addEventListener('click', (e) => {
+  // מעסיק? - סימון/ביטול ישיר מתוך שורת גיליון שכר, בלי להסתמך על התאמת שם
+  const empTag = e.target.closest('.emp-toggle');
+  if(empTag){
+    e.stopPropagation();
+    const absIdx = parseInt(empTag.dataset.rowidx);
+    const rows = getFilteredRows();
+    const row = rows[absIdx];
+    if(!row) return;
+    const cd = getClientData(row[0]);
+    cd.isEmployer = (cd.isEmployer === 'כן') ? 'לא' : 'כן';
+    saveClientData(row[0], cd);
+    pushClientData(row[0], cd);
+    renderTable();
+    return;
+  }
   // Handle accountant tag click → open dropdown
   const tag = e.target.closest('.acct-clk');
   if(tag){
