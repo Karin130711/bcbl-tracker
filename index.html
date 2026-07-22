@@ -918,6 +918,10 @@ function getRawRows(){
   Object.values(custom).forEach(row => {
     if(!base.find(r => r[0] === row[0])) base.push(row);
   });
+  if(curTab === 'sal'){
+    // רק לקוחות שמסומנים במפורש "מעסיק = כן" בכרטיס הלקוח מופיעים בגיליון שכר
+    return base.filter(row => getClientDataFuzzy(row[0]).isEmployer === 'כן');
+  }
   return base;
 }
 function getVatAcct(month, clientName){
