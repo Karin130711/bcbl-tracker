@@ -2630,21 +2630,45 @@ function editClosingNote(clientName, itemId, label){
 function getClientData(clientName){
   return LSG('bl_cdata_'+clientName.replace(/[^א-ת\w]/g,'_').slice(0,50)) || {};
 }
+// "שם שלד" - מוריד גרשיים/סוגריים/רווחים כדי להשוות שמות חברה גם כשיש
+// הבדלי כתיב קטנים (עם/בלי בע"מ בגרשיים, "(1)", רווח כפול וכו')
+function coreCompanyName(s){
+  return (s||'')
+    .replace(/["'׳״]/g,'')
+    .replace(/\([^)]*\)/g,'')
+    .replace(/[-.,]/g,'')
+    .replace(/\s+/g,'')
+    .trim();
+}
+let _coreNameMapCache = null;
+function buildCoreNameMap(){
+  const map = {};
+  Object.keys(DATA||{}).forEach(month=>{
+    ['v','s'].forEach(k=>{
+      ((DATA[month]&&DATA[month][k])||[]).forEach(r=>{
+        const cn = coreCompanyName(r[0]);
+        if(!cn) return;
+        if(!map[cn]) map[cn] = new Set();
+        map[cn].add(r[0]);
+      });
+    });
+  });
+  return map;
+}
 // כמו getClientData, אבל אם אין נתונים תחת השם המדויק (למשל כתיב שונה בין
-// גיליון "שכר" לגיליון "לקוחות" — עם/בלי בע"מ, רווח כפול וכו') מנסה למצוא
-// את אותו לקוח לפי התאמה חלקית (תחילית) מול רשימת הלקוחות הראשית.
+// גיליון "שכר" לגיליון "לקוחות") מנסה למצוא את אותו לקוח לפי "שם שלד" זהה,
+// בהתבסס על כל הכינויים של אותה חברה שמופיעים בכל החודשים.
 function getClientDataFuzzy(clientName){
   let cd = getClientData(clientName);
   if(cd && cd.isEmployer) return cd;
-  const name = (clientName||'').trim();
-  const vatRows = getRawRowsForTab('vat');
-  const match = vatRows.find(r=>{
-    const vn=(r[0]||'').trim();
-    return vn===name || name.startsWith(vn) || vn.startsWith(name);
-  });
-  if(match){
-    const cd2 = getClientData(match[0]);
-    if(cd2 && cd2.isEmployer) return cd2;
+  if(!_coreNameMapCache) _coreNameMapCache = buildCoreNameMap();
+  const cn = coreCompanyName(clientName);
+  const variants = _coreNameMapCache[cn];
+  if(variants){
+    for(const v of variants){
+      const cd2 = getClientData(v);
+      if(cd2 && cd2.isEmployer) return cd2;
+    }
   }
   return cd;
 }
