@@ -910,18 +910,19 @@ function toggleCheck(month, tab, row, idx){
 
 // ── Rows ──
 function getRawRows(){
+  if(curTab === 'sal'){
+    // גיליון שכר נשען ישירות על טאב הלקוחות הראשי: כל מי שכרטיס הלקוח שלו
+    // מסומן "מעסיק = כן" יופיע כאן אוטומטית - כולל לקוחות חדשים שיתווספו
+    // בעתיד. אין יותר הסתמכות על התאמת שם בין גיליונות.
+    return getRawRowsForTab('vat').filter(row => getClientData(row[0]).isEmployer === 'כן');
+  }
   const d = DATA[curMonth];
-  const base = [...((curTab === 'vat' ? d.v : d.s) || [])];
-  // Merge custom clients
+  const base = [...(d.v || [])];
   const perMonth = LSG('bl_custom_per_month') || {};
   const custom = perMonth[curMonth] || {};
   Object.values(custom).forEach(row => {
     if(!base.find(r => r[0] === row[0])) base.push(row);
   });
-  if(curTab === 'sal'){
-    // רק לקוחות שמסומנים במפורש "מעסיק = כן" בכרטיס הלקוח מופיעים בגיליון שכר
-    return base.filter(row => getClientDataFuzzy(row[0]).isEmployer === 'כן');
-  }
   return base;
 }
 function getVatAcct(month, clientName){
@@ -2489,16 +2490,14 @@ function getCoCompanies(){
   });
 }
 function getRawRowsForTab(tab){
+  if(tab==='sal'){
+    return getRawRowsForTab('vat').filter(row => getClientData(row[0]).isEmployer === 'כן');
+  }
   const d = DATA[MONTHS[MONTHS.length-1]];
-  const base = [...((tab==='vat'?d.v:d.s)||[])];
+  const base = [...(d.v||[])];
   const perMonth = LSG('bl_custom_per_month')||{};
   const custom = perMonth[MONTHS[MONTHS.length-1]]||{};
   Object.values(custom).forEach(row=>{ if(!base.find(r=>r[0]===row[0])) base.push(row); });
-  if(tab==='sal'){
-    // רק מי שמסומן במפורש "מעסיק = כן" בכרטיס הלקוח מופיע בגיליון שכר
-    // (רשימה חיובית, לא שלילית - כך שלקוחות שהשדה אצלם עדיין ריק לא "יישארו" בטעות)
-    return base.filter(row => getClientDataFuzzy(row[0]).isEmployer === 'כן');
-  }
   return base;
 }
 
