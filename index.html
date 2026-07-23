@@ -930,7 +930,7 @@ function getRawRows(){
     // מסומן "מעסיק = כן" יופיע כאן אוטומטית - כולל לקוחות חדשים שיתווספו
     // בעתיד. אין יותר הסתמכות על התאמת שם בין גיליונות.
     return getRawRowsForTab('vat')
-      .filter(row => getClientData(row[0]).isEmployer === 'כן')
+      .filter(row => { const cd=getClientData(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
       .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
   }
   const d = DATA[curMonth];
@@ -1124,12 +1124,8 @@ function _renderTable(){
     const acol = _acol || '#888';
     return `<tr>
       <td style="padding:8px 12px">
-        <div class="nm">${row[0]}${curTab==='sal' ? (()=>{
-          const cdEmp = getClientDataFuzzy(row[0]);
-          const isEmp = cdEmp.isEmployer==='כן';
-          return ` <span class="emp-badge" style="font-size:10px;padding:2px 7px;border-radius:6px;margin-inline-start:6px;${isEmp?'background:#F0FDF4;color:#16A34A;border:1px solid #86EFAC':'background:#F1F5F9;color:#94A3B8;border:1px solid #E2E8F0'}" title="מעודכן מתוך כרטיס הלקוח בטאב לקוחות">👔 ${isEmp?'מעסיק':'לא מעסיק'}</span>`;
-        })() : ''}</div>
-        <div class="tp">${(()=>{const cd=getClientData(row[0]);const tp=cd.typeOverride||row[1]||'';const tx=cd.taxId||'';return tp+(tx?' · <span style="color:var(--accent)">'+tx+'</span>':'');})()}</div>
+        <div class="nm">${getDisplayName(row[0])}</div>
+        <div class="tp">${(()=>{const cd=getClientData(row[0]);const tp=cd.typeOverride||row[1]||'';const tx=cd.taxId||'';const nik=curTab==='sal'?(cd.nikuyimFile||''):'';return tp+(tx?' · <span style="color:var(--accent)">'+tx+'</span>':'')+(nik?' · <span style="color:var(--gray)">תיק ניכויים: '+nik+'</span>':'');})()}</div>
       </td>
       <td style="text-align:center">
         <span class="atag acct-clk" style="background:${acol}22;color:${acol};cursor:pointer" data-rowidx="${start+rowIdx}" data-acct="${acct}"
@@ -2507,7 +2503,7 @@ function buildMasterClientList(){
 function getRawRowsForTab(tab){
   if(tab==='sal'){
     return getRawRowsForTab('vat')
-      .filter(row => getClientData(row[0]).isEmployer === 'כן')
+      .filter(row => { const cd=getClientData(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
       .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
   }
   // "לקוחות" הוא עכשיו איחוד אמיתי של כל לקוח שהופיע אי-פעם בכל חודש
@@ -2735,8 +2731,8 @@ function renderClientsTable(){
     const cd=getClientData(row[0]);
     const acol=getAcctColor(row[2])||'#888';
     const safe=row[0].replace(/'/g,"\'");
-    return `<tr>
-      <td><div class="nm">${row[0]}</div><div class="tp">${row[1]||''}</div></td>
+    return `<tr style="${cd.isActive==='לא'?'opacity:.55':''}">
+      <td><div class="nm">${getDisplayName(row[0])}${cd.isActive==='לא'?' <span style="font-size:10px;background:#F1F5F9;color:#94A3B8;border:1px solid #E2E8F0;padding:1px 6px;border-radius:6px">⚪ לא פעיל</span>':''}</div><div class="tp">${row[1]||''}</div></td>
       <td><span style="font-size:11px;color:var(--text3)">${row[1]||''}</span></td>
       <td><span class="acct-tag" style="background:${acol}22;color:${acol}">${row[2]||'—'}</span></td>
       <td style="font-size:13px">${cd.phone?'📞 '+cd.phone:'<span style="color:#CBD5E1">—</span>'}</td>
@@ -2753,13 +2749,24 @@ function openClientPanel(clientName, type, acct){
   _cpClient = clientName;
   const cd=getClientData(clientName);
   const acol=getAcctColor(acct)||'#888';
-  document.getElementById('cpName').textContent=clientName;
+  document.getElementById('cpName').textContent=cd.displayName||clientName;
   document.getElementById('cpType').textContent=type;
   document.getElementById('cpAcct').textContent=acct;
   document.getElementById('cpAcct').style.background=acol+'22';
   document.getElementById('cpAcct').style.color=acol;
   
   document.getElementById('cpBody').innerHTML=`
+    <div class="cp-field">
+      <div class="cp-label">✏️ שם לקוח (תצוגה)</div>
+      <input class="cp-input" id="cpNameEdit" value="${cd.displayName||clientName}" placeholder="שם הלקוח">
+    </div>
+    <div class="cp-field">
+      <div class="cp-label">🟢 סטטוס לקוח</div>
+      <select class="cp-input" id="cpActive">
+        <option${(cd.isActive||'כן')==='כן'?' selected':''} value="כן">🟢 פעיל</option>
+        <option${cd.isActive==='לא'?' selected':''} value="לא">⚪ לא פעיל</option>
+      </select>
+    </div>
     <div class="cp-field">
       <div class="cp-label">📱 אופן שליחת חומר</div>
       <select class="cp-input" id="cpSend">
@@ -2865,7 +2872,10 @@ function closeClientPanel(){
 function saveClientPanel(clientName){
   if(!clientName) clientName = _cpClient;
   if(!clientName) return;
+  const nameEditVal = document.getElementById('cpNameEdit')?.value.trim()||'';
   const cd={
+    displayName: (nameEditVal && nameEditVal!==clientName) ? nameEditVal : '',
+    isActive: document.getElementById('cpActive')?.value||'כן',
     phone: document.getElementById('cpPhone').value.trim(),
     email: document.getElementById('cpEmail').value.trim(),
     payment: document.getElementById('cpPay').value,
@@ -2885,6 +2895,12 @@ function saveClientPanel(clientName){
   renderClientsTable();
   renderTable();
   toast('✓ פרטי לקוח נשמרו');
+}
+// שם התצוגה של לקוח - עדיפות לשם החלופי שהוגדר בכרטיס, אחרת השם המקורי
+// (המפתח הפנימי לכל הנתונים ההיסטוריים תמיד נשאר השם המקורי, כדי לא לשבור קישור לנתוני עבר)
+function getDisplayName(clientName){
+  const cd = getClientData(clientName);
+  return cd.displayName || clientName;
 }
 
 // ══════════════════════════
