@@ -277,8 +277,9 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <button class="new-month-btn" onclick="openNewMonthModal()" style="margin:6px 12px">＋ חודש חדש</button>
   </div>
   <div style="display:flex;align-items:center;padding:0">
-    <div class="sheet-tab active" id="tabVat" onclick="switchTab('vat')" style="font-size:13px;padding:8px 20px">📄 מעמ ומקדמות</div>
-    <div class="sheet-tab salary" id="tabSal" onclick="switchTab('sal')" style="font-size:13px;padding:8px 20px">💼 שכר</div>
+    <div class="sheet-tab salary active" id="tabSal" onclick="switchTab('sal')" style="font-size:13px;padding:8px 20px">💼 שכר</div>
+    <div class="sheet-tab" id="tabVat" onclick="switchTab('vat')" style="font-size:13px;padding:8px 20px">📄 מעמ ומקדמות</div>
+    <div class="sheet-tab" id="tabMalkar" onclick="switchTab('malkar')" style="font-size:13px;padding:8px 20px">🏛️ מלכ"ר</div>
   </div>
 </div>
 
@@ -616,8 +617,8 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <h2>📅 תאריכי דיווח - <span id="ddMonthLabel"></span></h2>
     <div style="color:#64748B;font-size:13px;margin-bottom:14px">ניתן לערוך תאריך בודד אם יש חג/חריג החודש</div>
     <div class="form-row"><label>סוציאליות</label><input type="date" id="dd_social"></div>
-    <div class="form-row"><label>ניכויים</label><input type="date" id="dd_nikuyim"></div>
-    <div class="form-row"><label>מקדמות</label><input type="date" id="dd_mikdamot"></div>
+    <div class="form-row"><label>מס הכנסה - ניכויים</label><input type="date" id="dd_nikuyim"></div>
+    <div class="form-row"><label>מס הכנסה - מקדמות</label><input type="date" id="dd_mikdamot"></div>
     <div class="form-row"><label>ביטוח לאומי</label><input type="date" id="dd_bituach"></div>
     <div class="form-row"><label>מע"מ</label><input type="date" id="dd_maam"></div>
     <div class="form-row"><label>מע"מ מפורט</label><input type="date" id="dd_maamDetailed"></div>
@@ -653,6 +654,16 @@ tbody td:first-child{padding-right:10px;text-align:right}
     </div>
 
     <div id="dsPreviewView" style="display:none"></div>
+  </div>
+</div>
+
+<!-- Linked Client Picker Modal -->
+<div class="overlay" id="linkedClientModal">
+  <div class="modal" style="width:380px;max-height:70vh;display:flex;flex-direction:column">
+    <button class="modal-close" onclick="closeModal('linkedClientModal')">✕</button>
+    <h2>🔗 בחירת עוסק מקושר</h2>
+    <input class="cp-input" id="lcSearch" placeholder="חיפוש..." oninput="renderLinkedClientList()" style="margin-bottom:10px">
+    <div id="lcList" style="overflow:auto;flex:1"></div>
   </div>
 </div>
 
@@ -841,7 +852,7 @@ const LSS = (k,v) => localStorage.setItem(k, JSON.stringify(v));
 const LSG = k => { try { return JSON.parse(LS(k)) } catch(e) { return null } };
 
 let curMonth = MONTHS[MONTHS.length - 1];
-let curTab = 'vat'; // 'vat' | 'sal'
+let curTab = 'sal'; // 'vat' | 'sal' | 'malkar'
 let curFilt = 'all';
 let curPage = 1;
 const PAGE = 9999;
@@ -912,6 +923,8 @@ function setAssignment(clientName, acct, allMonths){
   if(syncEnabled) pushAssignment(month, clientName, acct);
 }
 function getClientAcct(month, row){
+  const cardAcct = getClientDataCanonical(row[0]).accountant;
+  if(cardAcct) return cardAcct;
   const ass = getAssignments();
   return (ass[month]||{})[row[0]] || row[2].trim();
 }
@@ -991,19 +1004,31 @@ function getRawRows(){
   if(curTab === 'sal'){
     // גיליון שכר נשען ישירות על טאב הלקוחות הראשי: כל מי שכרטיס הלקוח שלו
     // מסומן "מעסיק = כן" יופיע כאן אוטומטית - כולל לקוחות חדשים שיתווספו
-    // בעתיד. אין יותר הסתמכות על התאמת שם בין גיליונות.
-    return getRawRowsForTab('vat')
+    // בעתיד. אין יותר הסתמכות על התאמת שם בין גיליונות, ואין סינון לפי סוג עסק
+    // (גם מלכ"ר יכול להיות מעסיק).
+    return getClientUniverse()
       .filter(row => { const cd=getClientDataCanonical(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
       .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
   }
-  const d = DATA[curMonth];
-  const base = [...(d.v || [])];
-  const perMonth = LSG('bl_custom_per_month') || {};
-  const custom = perMonth[curMonth] || {};
-  Object.values(custom).forEach(row => {
-    if(!base.find(r => r[0] === row[0])) base.push(row);
-  });
-  return base;
+  if(curTab === 'malkar'){
+    return getRawRowsForTab('malkar');
+  }
+  // 'vat' - חברות/שותפויות/עוסקים מורשים/עוסקים פטורים עם מקדמות בלבד (לא מלכ"רים)
+  return getRawRowsForTab('vat')
+    .map(row => findVatRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
+}
+// עבור לקוח נתון, מוצא את שורת ה"מע"מ" האמיתית שלו (עמודות הצ'קבוקסים
+// הנכונות), בדיוק כמו findSalRowForClient אבל עבור גיליון מע"מ
+function findVatRowForClient(name){
+  const cur = (DATA[curMonth] && DATA[curMonth].v) || [];
+  let hit = cur.find(r => r[0] === name);
+  if(hit) return hit;
+  for(let i = MONTHS.length - 1; i >= 0; i--){
+    const arr = (DATA[MONTHS[i]] && DATA[MONTHS[i]].v) || [];
+    hit = arr.find(r => r[0] === name);
+    if(hit) return hit;
+  }
+  return null;
 }
 function getVatAcct(month, clientName){
   const vatRows=(DATA[month]?.v)||[];
@@ -1087,6 +1112,13 @@ function getFilteredRows(){
 
 // ── Stats ──
 function updateStats(){
+  if(curTab === 'malkar'){
+    const all = getRawRowsForTab('malkar');
+    document.getElementById('statsRow').innerHTML = `
+      <div class="stat s-gold"><div class="stat-n">${all.length}</div><div class="stat-l">מלכ"רים</div></div>
+    `;
+    return;
+  }
   const all = getRawRows();
   let tot=0,done=0,part=0,pend=0;
   all.forEach(row => {
@@ -1113,6 +1145,7 @@ function renderTable(){
   _renderTable();
 }
 function _renderTable(){
+  if(curTab === 'malkar'){ renderMalkarTable(); return; }
   const cols = curTab==='vat' ? VAT_COLS_SHORT : SAL_COLS_WITH_CMD;
   const rows = getFilteredRows();
   const total = rows.length;
@@ -1437,7 +1470,9 @@ function dsKey(clientName, month){
   return 'bl_datasum_' + month + '_' + clientName.replace(/[^א-ת\w]/g,'_').slice(0,50);
 }
 function emptyEntity(name){
-  return {name: name||'', maam:'', maamDue:'', mikdamot:'', mikdamotDue:'', nikuyim:'', nikuyimDue:'', bituach:'', bituachDue:''};
+  const dl = LSG('bl_deadlines_'+curMonth) || computeDefaultDeadlines(curMonth);
+  return {name: name||'', maam:'', maamDue: dl.maam||'', mikdamot:'', mikdamotDue: dl.mikdamot||'',
+          nikuyim:'', nikuyimDue: dl.nikuyim||'', bituach:'', bituachDue: dl.bituach||''};
 }
 function readEntitiesFromDom(){
   return Array.from(document.querySelectorAll('.ds-entity-row')).map(r=>{
@@ -1466,9 +1501,9 @@ function renderEntities(){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <div class="form-row"><label>מע"מ</label><input type="number" id="ds_ent_${i}_maam" value="${e.maam||''}"></div>
         <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_maamDue" value="${e.maamDue||''}"></div>
-        <div class="form-row"><label>מקדמות</label><input type="number" id="ds_ent_${i}_mikdamot" value="${e.mikdamot||''}"></div>
+        <div class="form-row"><label>מס הכנסה - מקדמות</label><input type="number" id="ds_ent_${i}_mikdamot" value="${e.mikdamot||''}"></div>
         <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_mikdamotDue" value="${e.mikdamotDue||''}"></div>
-        <div class="form-row"><label>ניכויים</label><input type="number" id="ds_ent_${i}_nikuyim" value="${e.nikuyim||''}"></div>
+        <div class="form-row"><label>מס הכנסה - ניכויים</label><input type="number" id="ds_ent_${i}_nikuyim" value="${e.nikuyim||''}"></div>
         <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_nikuyimDue" value="${e.nikuyimDue||''}"></div>
         <div class="form-row"><label>ביטוח לאומי</label><input type="number" id="ds_ent_${i}_bituach" value="${e.bituach||''}"></div>
         <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_bituachDue" value="${e.bituachDue||''}"></div>
@@ -1560,8 +1595,8 @@ function buildSummaryHtml(){
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <tr style="background:#F8FAFC"><td style="padding:6px 8px;font-weight:600">רשות</td><td style="padding:6px 8px;font-weight:600">סכום</td><td style="padding:6px 8px;font-weight:600">מועד תשלום</td></tr>
         <tr><td style="padding:6px 8px">מע"מ</td><td style="padding:6px 8px">₪${fmtNum(e.maam)}</td><td style="padding:6px 8px">${fmtDateDs(e.maamDue)}</td></tr>
-        <tr><td style="padding:6px 8px">מקדמות מס הכנסה</td><td style="padding:6px 8px">₪${fmtNum(e.mikdamot)}</td><td style="padding:6px 8px">${fmtDateDs(e.mikdamotDue)}</td></tr>
-        <tr><td style="padding:6px 8px">ניכויים מס הכנסה</td><td style="padding:6px 8px">₪${fmtNum(e.nikuyim)}</td><td style="padding:6px 8px">${fmtDateDs(e.nikuyimDue)}</td></tr>
+        <tr><td style="padding:6px 8px">מס הכנסה - מקדמות</td><td style="padding:6px 8px">₪${fmtNum(e.mikdamot)}</td><td style="padding:6px 8px">${fmtDateDs(e.mikdamotDue)}</td></tr>
+        <tr><td style="padding:6px 8px">מס הכנסה - ניכויים</td><td style="padding:6px 8px">₪${fmtNum(e.nikuyim)}</td><td style="padding:6px 8px">${fmtDateDs(e.nikuyimDue)}</td></tr>
         <tr><td style="padding:6px 8px">ביטוח לאומי</td><td style="padding:6px 8px">₪${fmtNum(e.bituach)}</td><td style="padding:6px 8px">${fmtDateDs(e.bituachDue)}</td></tr>
       </table>
     </div>`;
@@ -1590,8 +1625,8 @@ function buildSummaryText(){
   entities.forEach(e => {
     t += `${e.name || ''}\n`;
     t += `מע"מ: ₪${fmtNum(e.maam)} (עד ${fmtDateDs(e.maamDue)})\n`;
-    t += `מקדמות: ₪${fmtNum(e.mikdamot)} (עד ${fmtDateDs(e.mikdamotDue)})\n`;
-    t += `ניכויים: ₪${fmtNum(e.nikuyim)} (עד ${fmtDateDs(e.nikuyimDue)})\n`;
+    t += `מס הכנסה - מקדמות: ₪${fmtNum(e.mikdamot)} (עד ${fmtDateDs(e.mikdamotDue)})\n`;
+    t += `מס הכנסה - ניכויים: ₪${fmtNum(e.nikuyim)} (עד ${fmtDateDs(e.nikuyimDue)})\n`;
     t += `ביטוח לאומי: ₪${fmtNum(e.bituach)} (עד ${fmtDateDs(e.bituachDue)})\n\n`;
   });
   if(funds.length){
@@ -1638,6 +1673,32 @@ function sendSummaryWhatsapp(){
   window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
 }
 
+// ── בחירת עוסק מקושר ──
+let _lcFiltered = [];
+function openLinkedClientPicker(){
+  document.getElementById('lcSearch').value = '';
+  renderLinkedClientList();
+  openModal('linkedClientModal');
+}
+function renderLinkedClientList(){
+  const q = (document.getElementById('lcSearch').value||'').trim();
+  const self = _cpClient;
+  _lcFiltered = [...new Set(buildMasterClientList().map(r => getDisplayName(r[0])))]
+    .filter(n => n && n !== getDisplayName(self))
+    .filter(n => !q || n.includes(q))
+    .sort((a,b) => a.localeCompare(b,'he'))
+    .slice(0,150);
+  document.getElementById('lcList').innerHTML = _lcFiltered.map((n,i) => `
+    <div class="lc-item" data-idx="${i}" style="padding:8px 10px;cursor:pointer;border-radius:6px;font-size:13px" onmouseover="this.style.background='#F1F5F9'" onmouseout="this.style.background='transparent'">${n}</div>
+  `).join('') || '<div style="color:#94A3B8;padding:10px;font-size:13px">לא נמצאו תוצאות</div>';
+}
+document.getElementById('lcList')?.addEventListener('click', (e) => {
+  const item = e.target.closest('.lc-item');
+  if(!item) return;
+  const name = _lcFiltered[parseInt(item.dataset.idx)];
+  if(name){ document.getElementById('cpLinkedClient').value = name; closeModal('linkedClientModal'); }
+});
+
 // ── Sheet tabs ──
 let curMainTab = 'monthly';
 
@@ -1660,14 +1721,75 @@ function switchTab(t){
   curTab = t;
   document.getElementById('tabVat').className = 'sheet-tab' + (t==='vat'?' active':'');
   document.getElementById('tabSal').className = 'sheet-tab salary' + (t==='sal'?' active':'');
+  document.getElementById('tabMalkar').className = 'sheet-tab' + (t==='malkar'?' active':'');
   const sfEl=document.getElementById('sendFilt');
   if(sfEl) sfEl.style.display=t==='vat'?'':'none';
   const miFEl=document.getElementById('miFilt');
-  if(miFEl){ miFEl.style.display=t==='vat'?'':'none'; if(t==='sal') miFEl.value=''; }
+  if(miFEl){ miFEl.style.display=t==='vat'?'':'none'; if(t!=='vat') miFEl.value=''; }
   const nikEl=document.getElementById('nikFiltWrap');
-  if(nikEl){ nikEl.style.display=t==='sal'?'flex':'none'; if(t==='vat'){ activeNikFilts.clear(); document.querySelectorAll('.nik-flt').forEach(b=>b.classList.remove('on')); } }
+  if(nikEl){ nikEl.style.display=t==='sal'?'flex':'none'; if(t!=='sal'){ activeNikFilts.clear(); document.querySelectorAll('.nik-flt').forEach(b=>b.classList.remove('on')); } }
   updateStats(); renderTable();
 }
+
+// ── טאב מלכ"ר: עמודות ייחודיות, לא קשור למע"מ/מקדמות ──
+function renderMalkarTable(){
+  const srch = (document.getElementById('srch')?.value || '').toLowerCase();
+  let rows = getRawRowsForTab('malkar');
+  if(srch) rows = rows.filter(r => r[0].toLowerCase().includes(srch));
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat s-gold"><div class="stat-n">${rows.length}</div><div class="stat-l">מלכ"רים</div></div>
+  `;
+  document.getElementById('thead').innerHTML = `<tr>
+    <th style="text-align:right;padding-right:12px">שם לקוח</th>
+    <th style="width:110px;text-align:center;font-size:11px">בטיפול מנהלת<br>החשבונות</th>
+    <th style="width:140px;text-align:center;font-size:11px">קליטת חומר<br>עד חודש</th>
+    <th style="width:110px;text-align:center;font-size:11px">חשבוניות<br>חסרות</th>
+  </tr>`;
+  document.getElementById('tbody').innerHTML = rows.map(row => {
+    const cd = getClientDataCanonical(row[0]);
+    const acct = getClientAcct(curMonth, row);
+    const acol = getAcctColor(acct) || '#888';
+    const monthOptions = MONTHS.map(m => `<option${cd.materialUpToMonth===m?' selected':''} value="${m}">${m}</option>`).join('');
+    return `<tr>
+      <td style="padding:8px 12px">
+        <div class="nm">${getDisplayName(row[0])}</div>
+        <div class="tp">${cd.typeOverride||row[1]||''}${cd.taxId?' · <span style="color:var(--accent)">'+cd.taxId+'</span>':''}</div>
+      </td>
+      <td style="text-align:center"><span class="atag" style="background:${acol}22;color:${acol}">${acct||'—'}</span></td>
+      <td style="text-align:center">
+        <select class="malkar-material" data-name="${encodeURIComponent(row[0])}" style="font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid #E2E8F0">
+          <option value="">—</option>
+          ${monthOptions}
+        </select>
+      </td>
+      <td style="text-align:center">
+        <input type="checkbox" class="malkar-missing" data-name="${encodeURIComponent(row[0])}" ${cd.missingInvoices==='כן'?'checked':''}>
+      </td>
+    </tr>`;
+  }).join('');
+  const pagEl = document.getElementById('pagination');
+  if(pagEl) pagEl.innerHTML = '';
+}
+document.addEventListener('change', function(e){
+  const sel = e.target.closest('.malkar-material');
+  if(sel){
+    const name = decodeURIComponent(sel.dataset.name);
+    const cd = getClientData(name);
+    cd.materialUpToMonth = sel.value;
+    saveClientData(name, cd);
+    pushClientData(name, cd);
+    return;
+  }
+  const chk = e.target.closest('.malkar-missing');
+  if(chk){
+    const name = decodeURIComponent(chk.dataset.name);
+    const cd = getClientData(name);
+    cd.missingInvoices = chk.checked ? 'כן' : 'לא';
+    saveClientData(name, cd);
+    pushClientData(name, cd);
+    return;
+  }
+});
 
 
 // ── Nikuyim multi-filter ──
@@ -2824,14 +2946,9 @@ function buildMasterClientList(){
   });
   return list;
 }
-function getRawRowsForTab(tab){
-  if(tab==='sal'){
-    return getRawRowsForTab('vat')
-      .filter(row => { const cd=getClientDataCanonical(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
-      .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
-  }
-  // "לקוחות" הוא עכשיו איחוד אמיתי של כל לקוח שהופיע אי-פעם בכל חודש
-  // (גם אם רק בגיליון שכר של חודש ישן, לא רק בגיליון מע"מ של החודש האחרון)
+// "היקום" של כל לקוח שהופיע אי-פעם, בכל גיליון, בכל חודש - הרשימה השלמה
+// שממנה נגזרות כל שאר התצוגות (לקוחות/שכר/מע"מ/מלכ"ר)
+function getClientUniverse(){
   if(!_masterClientListCache) _masterClientListCache = buildMasterClientList();
   const base = [..._masterClientListCache];
   const perMonth = LSG('bl_custom_per_month')||{};
@@ -2839,6 +2956,35 @@ function getRawRowsForTab(tab){
     Object.values(monthObj||{}).forEach(row=>{ if(!base.find(r=>r[0]===row[0])) base.push(row); });
   });
   return base;
+}
+function getClientType(clientName){
+  const cd = getClientDataCanonical(clientName);
+  if(cd.typeOverride) return cd.typeOverride;
+  const row = getClientUniverse().find(r=>r[0]===clientName);
+  return row ? (row[1]||'') : '';
+}
+const VAT_TYPES = ['חברה','חברה מורשית','שותפות','עוסק מורשה','עוסק פטור- מקדמות'];
+const MALKAR_TYPES = ['מלכ"ר','עמותה -מלכ"ר'];
+function getRawRowsForTab(tab){
+  if(tab==='sal'){
+    return getClientUniverse()
+      .filter(row => { const cd=getClientDataCanonical(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
+      .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
+  }
+  if(tab==='malkar'){
+    return getClientUniverse().filter(row => {
+      const cd=getClientDataCanonical(row[0]);
+      return cd.isActive!=='לא' && MALKAR_TYPES.includes(getClientType(row[0]));
+    });
+  }
+  if(tab==='vat'){
+    return getClientUniverse().filter(row => {
+      const cd=getClientDataCanonical(row[0]);
+      return cd.isActive!=='לא' && VAT_TYPES.includes(getClientType(row[0]));
+    });
+  }
+  // "all" - רשימת הלקוחות המלאה (טאב "לקוחות"), ללא סינון לפי סוג עסק
+  return getClientUniverse();
 }
 
 function closingCkKey(year, clientName, itemId){
@@ -3085,7 +3231,7 @@ function populateClientsAcctFilter(){
 function renderClientsTable(){
   const srch=(document.getElementById('clientsSrch').value||'').toLowerCase();
   const acctF=document.getElementById('clientsAcctFilt').value.trim();
-  const rows=getRawRowsForTab('vat').filter(r=>{
+  const rows=getRawRowsForTab('all').filter(r=>{
     if(acctF&&r[2].trim()!==acctF) return false;
     if(srch&&!r[0].toLowerCase().includes(srch)&&!(r[2]||'').toLowerCase().includes(srch)) return false;
     return true;
@@ -3225,9 +3371,20 @@ function openClientPanel(clientName, type, acct){
     </div>
 
     <div class="cp-field">
+      <div class="cp-label">👤 מנה"ש מטפלת</div>
+      <select class="cp-input" id="cpAcctSel">
+        <option value="">—</option>
+        ${getAccts().map(a => `<option${(cd.accountant||'')===a?' selected':''} value="${a}">${a}</option>`).join('')}
+      </select>
+      <div style="font-size:11px;color:#94A3B8;margin-top:4px">שינוי כאן מתעדכן אוטומטית בכל מקום בדשבורד - זה מקור האמת היחיד</div>
+    </div>
+    <div class="cp-field">
       <div class="cp-label">🔗 עוסק מקושר (לריכוז נתונים משותף)</div>
-      <input class="cp-input" id="cpLinkedClient" value="${cd.linkedClient||''}" placeholder="שם הלקוח/עסק המקושר, אם יש">
-      <div style="font-size:11px;color:#94A3B8;margin-top:4px">אם ללקוח יש 2 עסקים (חברה + עוסק), קשרי כאן ל"ריכוז נתונים" אחד משותף ששני הכפתורים יפתחו וישלחו ביחד</div>
+      <div style="display:flex;gap:8px">
+        <input class="cp-input" id="cpLinkedClient" value="${cd.linkedClient||''}" placeholder="לא נבחר" readonly style="cursor:pointer;background:#F8FAFC" onclick="openLinkedClientPicker()">
+        <button class="btn" onclick="openLinkedClientPicker()" style="white-space:nowrap">🔍 בחירה</button>
+        ${cd.linkedClient?`<button class="btn" onclick="document.getElementById('cpLinkedClient').value=''" style="white-space:nowrap">✕ ניקוי</button>`:''}
+      </div>
     </div>
 
     <div class="cp-field">
@@ -3261,6 +3418,7 @@ function saveClientPanel(clientName){
     note: document.getElementById('cpNote').value.trim(),
     typeOverride: document.getElementById('cpTypeEdit')?.value||undefined,
     linkedClient: document.getElementById('cpLinkedClient')?.value.trim()||'',
+    accountant: document.getElementById('cpAcctSel')?.value||'',
   };
   saveClientData(clientName,cd);
   pushClientData(clientName,cd);
