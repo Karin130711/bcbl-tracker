@@ -1220,7 +1220,7 @@ function _renderTable(){
     const acol = _acol || '#888';
     return `<tr>
       <td style="padding:8px 12px">
-        <div class="nm">${getDisplayName(row[0])}${curTab==='sal' ? ` <span class="datasum-clk" data-rowidx="${start+rowIdx}" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:6px;margin-inline-start:6px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE" title="ריכוז נתונים ללקוח">📊 ריכוז נתונים</span>` : ''}</div>
+        <div class="nm">${getDisplayName(row[0])}</div>
         <div class="tp">${(()=>{const cd=getClientDataCanonical(row[0]);const tp=cd.typeOverride||row[1]||'';const tx=cd.taxId||'';const nik=curTab==='sal'?(cd.nikuyimFile||''):'';return tp+(tx?' · <span style="color:var(--accent)">'+tx+'</span>':'')+(nik?' · <span style="color:var(--gray)">תיק ניכויים: '+nik+'</span>':'');})()}</div>
       </td>
       <td style="text-align:center">
@@ -1340,6 +1340,14 @@ document.addEventListener('click', function(e){
     const rows = window._clientRows || [];
     const row = rows[idx];
     if(row) openClientPanel(row[0], row[1]||'', row[2]||'');
+    return;
+  }
+  const dsBtn = e.target.closest('.clients-datasum-btn');
+  if(dsBtn){
+    const idx = parseInt(dsBtn.dataset.idx);
+    const rows = window._clientRows || [];
+    const row = rows[idx];
+    if(row) openDataSummary(row[0]);
     return;
   }
 });
@@ -3250,7 +3258,10 @@ function renderClientsTable(){
       <td style="font-size:13px">${cd.email?'✉️ '+cd.email:'<span style="color:#CBD5E1">—</span>'}</td>
       <td style="font-size:12px;color:var(--text3)">${cd.payment||'—'}</td>
       <td style="font-size:12px;color:var(--text3);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cd.note||''}</td>
-      <td><button class="btn clients-edit-btn" data-idx="${rows.indexOf(row)}" style="padding:3px 10px;font-size:11px">✏️ עריכה</button></td>
+      <td>
+        <button class="btn clients-edit-btn" data-idx="${rows.indexOf(row)}" style="padding:3px 10px;font-size:11px">✏️ עריכה</button>
+        <button class="btn clients-datasum-btn" data-idx="${rows.indexOf(row)}" style="padding:3px 10px;font-size:11px;background:#EFF6FF;color:#2563EB;border-color:#BFDBFE">📊 ריכוז נתונים</button>
+      </td>
     </tr>`;
   }).join('');
   window._clientRows = rows;
