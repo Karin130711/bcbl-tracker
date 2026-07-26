@@ -609,6 +609,53 @@ tbody td:first-child{padding-right:10px;text-align:right}
   </div>
 </div>
 
+<!-- Reporting Deadlines Modal -->
+<div class="overlay" id="deadlinesModal">
+  <div class="modal" style="width:440px">
+    <button class="modal-close" onclick="closeModal('deadlinesModal')">✕</button>
+    <h2>📅 תאריכי דיווח - <span id="ddMonthLabel"></span></h2>
+    <div style="color:#64748B;font-size:13px;margin-bottom:14px">ניתן לערוך תאריך בודד אם יש חג/חריג החודש</div>
+    <div class="form-row"><label>סוציאליות</label><input type="date" id="dd_social"></div>
+    <div class="form-row"><label>ניכויים</label><input type="date" id="dd_nikuyim"></div>
+    <div class="form-row"><label>מקדמות</label><input type="date" id="dd_mikdamot"></div>
+    <div class="form-row"><label>ביטוח לאומי</label><input type="date" id="dd_bituach"></div>
+    <div class="form-row"><label>מע"מ</label><input type="date" id="dd_maam"></div>
+    <div class="form-row"><label>מע"מ מפורט</label><input type="date" id="dd_maamDetailed"></div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn primary" onclick="saveDeadlines()" style="flex:1">✓ אישור</button>
+      <button class="btn" onclick="closeModal('deadlinesModal')">סגירה</button>
+    </div>
+  </div>
+</div>
+
+<!-- Data Summary Modal -->
+<div class="overlay" id="dataSummaryModal">
+  <div class="modal" style="width:680px;max-height:88vh;overflow:auto">
+    <button class="modal-close" onclick="closeModal('dataSummaryModal')">✕</button>
+    <h2>📊 ריכוז נתונים - <span id="dsClientLabel"></span> (<span id="dsMonthLabel"></span>)</h2>
+
+    <div id="dsEditView">
+      <div id="dsEntities"></div>
+      <button class="btn" style="margin:6px 0 18px" onclick="addEntityRow()">＋ הוספת ישות (חברה/עוסק נוסף)</button>
+
+      <div style="font-weight:700;margin:14px 0 8px">🏦 קופות</div>
+      <div id="dsFunds"></div>
+      <button class="btn" style="margin:6px 0 18px" onclick="addFundRow()">＋ הוספת קופה</button>
+
+      <div style="font-weight:700;margin:14px 0 8px">📈 נתונים נוספים</div>
+      <div class="form-row"><label>מחזור חודשי</label><input type="number" id="dsMonthlyTurnover"></div>
+      <div class="form-row"><label>מחזור מצטבר</label><input type="number" id="dsCumulativeTurnover"></div>
+
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button class="btn primary" onclick="saveDataSummary()" style="flex:1">✓ שמירה</button>
+        <button class="btn" onclick="showDsPreview()">👁 תצוגה ללקוח</button>
+      </div>
+    </div>
+
+    <div id="dsPreviewView" style="display:none"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -629,6 +676,8 @@ function initSupabase() {
     pullAllFromSupabase().then(() => {
       setSyncStatus('online');
       subscribeRealtime();
+      renderTable();
+      openDeadlinesModal();
     });
   } catch(e) {
     console.error('Supabase init failed:', e);
@@ -679,6 +728,20 @@ async function pullAllFromSupabase() {
       ass[r.month][r.client_name] = r.accountant;
     });
     if(Object.keys(ass).length) LSS('bl_assign', ass);
+    // Reporting deadlines
+    const {data: deadlines} = await db.from('tracker_deadlines').select('*');
+    (deadlines||[]).forEach(r => {
+      const {month, updated_at, id, ...vals} = r;
+      LSS('bl_deadlines_' + month, vals);
+    });
+    // Client data summaries (ריכוז נתונים)
+    const {data: summaries} = await db.from('tracker_data_summary').select('*');
+    (summaries||[]).forEach(r => {
+      LSS(dsKey(r.client_name, r.month), {
+        entities: r.entities||[], funds: r.funds||[],
+        monthlyTurnover: r.monthly_turnover, cumulativeTurnover: r.cumulative_turnover
+      });
+    });
   } catch(e) {
     console.error('Pull failed:', e);
   }
@@ -930,7 +993,7 @@ function getRawRows(){
     // מסומן "מעסיק = כן" יופיע כאן אוטומטית - כולל לקוחות חדשים שיתווספו
     // בעתיד. אין יותר הסתמכות על התאמת שם בין גיליונות.
     return getRawRowsForTab('vat')
-      .filter(row => { const cd=getClientData(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
+      .filter(row => { const cd=getClientDataCanonical(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
       .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
   }
   const d = DATA[curMonth];
@@ -1124,8 +1187,8 @@ function _renderTable(){
     const acol = _acol || '#888';
     return `<tr>
       <td style="padding:8px 12px">
-        <div class="nm">${getDisplayName(row[0])}</div>
-        <div class="tp">${(()=>{const cd=getClientData(row[0]);const tp=cd.typeOverride||row[1]||'';const tx=cd.taxId||'';const nik=curTab==='sal'?(cd.nikuyimFile||''):'';return tp+(tx?' · <span style="color:var(--accent)">'+tx+'</span>':'')+(nik?' · <span style="color:var(--gray)">תיק ניכויים: '+nik+'</span>':'');})()}</div>
+        <div class="nm">${getDisplayName(row[0])}${curTab==='sal' ? ` <span class="datasum-clk" data-rowidx="${start+rowIdx}" style="cursor:pointer;font-size:10px;padding:2px 7px;border-radius:6px;margin-inline-start:6px;background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE" title="ריכוז נתונים ללקוח">📊 ריכוז נתונים</span>` : ''}</div>
+        <div class="tp">${(()=>{const cd=getClientDataCanonical(row[0]);const tp=cd.typeOverride||row[1]||'';const tx=cd.taxId||'';const nik=curTab==='sal'?(cd.nikuyimFile||''):'';return tp+(tx?' · <span style="color:var(--accent)">'+tx+'</span>':'')+(nik?' · <span style="color:var(--gray)">תיק ניכויים: '+nik+'</span>':'');})()}</div>
       </td>
       <td style="text-align:center">
         <span class="atag acct-clk" style="background:${acol}22;color:${acol};cursor:pointer" data-rowidx="${start+rowIdx}" data-acct="${acct}"
@@ -1249,6 +1312,15 @@ document.addEventListener('click', function(e){
 });
 
 document.addEventListener('click', (e) => {
+  const dsTag = e.target.closest('.datasum-clk');
+  if(dsTag){
+    e.stopPropagation();
+    const absIdx = parseInt(dsTag.dataset.rowidx);
+    const rows = getFilteredRows();
+    const row = rows[absIdx];
+    if(row) openDataSummary(row[0]);
+    return;
+  }
   // Handle accountant tag click → open dropdown
   const tag = e.target.closest('.acct-clk');
   if(tag){
@@ -1312,6 +1384,258 @@ function selectMonth(m){
   renderMonthNav();
   updateStats();
   renderTable();
+  openDeadlinesModal();
+}
+
+// ── תאריכי דיווח חודשיים ──
+function computeDefaultDeadlines(month){
+  const [mm, yy] = month.split('/').map(Number);
+  let nmm = mm + 1, nyear = 2000 + yy;
+  if(nmm > 12){ nmm = 1; nyear++; }
+  const iso = (day) => `${nyear}-${String(nmm).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  return {
+    social: iso(15),
+    nikuyim: iso(19),
+    mikdamot: iso(19),
+    bituach: iso(21),
+    maam: iso(19),
+    maamDetailed: iso(23),
+  };
+}
+function openDeadlinesModal(){
+  const saved = LSG('bl_deadlines_' + curMonth) || {};
+  const defaults = computeDefaultDeadlines(curMonth);
+  const vals = {...defaults, ...saved};
+  document.getElementById('ddMonthLabel').textContent = curMonth;
+  Object.keys(defaults).forEach(k => {
+    const el = document.getElementById('dd_' + k);
+    if(el) el.value = vals[k];
+  });
+  openModal('deadlinesModal');
+}
+function saveDeadlines(){
+  const keys = ['social','nikuyim','mikdamot','bituach','maam','maamDetailed'];
+  const vals = {};
+  try{
+    keys.forEach(k => { const el = document.getElementById('dd_' + k); vals[k] = el ? el.value : ''; });
+    LSS('bl_deadlines_' + curMonth, vals);
+    if(db){
+      db.from('tracker_deadlines').upsert({
+        month: curMonth, ...vals, updated_at: new Date().toISOString()
+      }, {onConflict: 'month'}).then(()=>{}).catch(e => console.error('deadlines cloud save failed:', e));
+    }
+  }catch(e){
+    console.error('saveDeadlines error:', e);
+  }
+  closeModal('deadlinesModal');
+  toast('✓ תאריכי דיווח נשמרו');
+}
+
+// ── ריכוז נתונים ללקוח ──
+let _dsClient = null;
+function dsKey(clientName, month){
+  return 'bl_datasum_' + month + '_' + clientName.replace(/[^א-ת\w]/g,'_').slice(0,50);
+}
+function emptyEntity(name){
+  return {name: name||'', maam:'', maamDue:'', mikdamot:'', mikdamotDue:'', nikuyim:'', nikuyimDue:'', bituach:'', bituachDue:''};
+}
+function readEntitiesFromDom(){
+  return Array.from(document.querySelectorAll('.ds-entity-row')).map(r=>{
+    const i = r.dataset.idx;
+    const v = id => document.getElementById('ds_ent_'+i+'_'+id)?.value || '';
+    return {name:v('name'), maam:v('maam'), maamDue:v('maamDue'), mikdamot:v('mikdamot'), mikdamotDue:v('mikdamotDue'),
+            nikuyim:v('nikuyim'), nikuyimDue:v('nikuyimDue'), bituach:v('bituach'), bituachDue:v('bituachDue')};
+  });
+}
+function readFundsFromDom(){
+  return Array.from(document.querySelectorAll('.ds-fund-row')).map(r=>{
+    const i = r.dataset.idx;
+    return {
+      name: document.getElementById('ds_fund_'+i+'_name')?.value||'',
+      amount: document.getElementById('ds_fund_'+i+'_amount')?.value||'',
+      due: document.getElementById('ds_fund_'+i+'_due')?.value||'',
+    };
+  });
+}
+let _dsEntities = [], _dsFunds = [];
+function renderEntities(){
+  document.getElementById('dsEntities').innerHTML = _dsEntities.map((e,i)=>`
+    <div class="ds-entity-row" data-idx="${i}" style="border:1px solid #E2E8F0;border-radius:10px;padding:12px;margin-bottom:10px;position:relative">
+      ${_dsEntities.length>1?`<button onclick="removeEntityRow(${i})" style="position:absolute;top:8px;left:8px;background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">✕</button>`:''}
+      <div class="form-row"><label>שם הישות</label><input id="ds_ent_${i}_name" value="${e.name||''}" placeholder="למשל: י. אמינוב פרויקטים בע&quot;מ"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="form-row"><label>מע"מ</label><input type="number" id="ds_ent_${i}_maam" value="${e.maam||''}"></div>
+        <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_maamDue" value="${e.maamDue||''}"></div>
+        <div class="form-row"><label>מקדמות</label><input type="number" id="ds_ent_${i}_mikdamot" value="${e.mikdamot||''}"></div>
+        <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_mikdamotDue" value="${e.mikdamotDue||''}"></div>
+        <div class="form-row"><label>ניכויים</label><input type="number" id="ds_ent_${i}_nikuyim" value="${e.nikuyim||''}"></div>
+        <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_nikuyimDue" value="${e.nikuyimDue||''}"></div>
+        <div class="form-row"><label>ביטוח לאומי</label><input type="number" id="ds_ent_${i}_bituach" value="${e.bituach||''}"></div>
+        <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_bituachDue" value="${e.bituachDue||''}"></div>
+      </div>
+    </div>`).join('');
+}
+function renderFunds(){
+  document.getElementById('dsFunds').innerHTML = _dsFunds.map((f,i)=>`
+    <div class="ds-fund-row" data-idx="${i}" style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">
+      <div class="form-row" style="margin:0"><label>שם הקופה</label><input id="ds_fund_${i}_name" value="${f.name||''}"></div>
+      <div class="form-row" style="margin:0"><label>סכום</label><input type="number" id="ds_fund_${i}_amount" value="${f.amount||''}"></div>
+      <div class="form-row" style="margin:0"><label>מועד</label><input type="date" id="ds_fund_${i}_due" value="${f.due||''}"></div>
+      <button onclick="removeFundRow(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">✕</button>
+    </div>`).join('');
+}
+function addEntityRow(){ _dsEntities = readEntitiesFromDom(); _dsEntities.push(emptyEntity('')); renderEntities(); }
+function removeEntityRow(i){ _dsEntities = readEntitiesFromDom(); _dsEntities.splice(i,1); renderEntities(); }
+function addFundRow(){ _dsFunds = readFundsFromDom(); _dsFunds.push({name:'',amount:'',due:''}); renderFunds(); }
+function removeFundRow(i){ _dsFunds = readFundsFromDom(); _dsFunds.splice(i,1); renderFunds(); }
+
+// אם ללקוח יש עוסק מקושר, ריכוז הנתונים מתנהל תחת "יעד" אחד משותף -
+// כך שני הכפתורים (של הלקוח ושל העוסק המקושר) פותחים ושולחים את אותו ריכוז
+function resolveDsTarget(clientName){
+  clientName = getCanonicalName(clientName);
+  const cd = getClientDataCanonical(clientName);
+  if(cd.linkedClient && cd.linkedClient.trim()){
+    return getCanonicalName(cd.linkedClient.trim());
+  }
+  return clientName;
+}
+function openDataSummary(clientName){
+  const original = getCanonicalName(clientName);
+  const target = resolveDsTarget(original);
+  _dsClient = target;
+  document.getElementById('dsClientLabel').textContent = getDisplayName(target) +
+    (target !== original ? ' + ' + getDisplayName(original) : '');
+  document.getElementById('dsMonthLabel').textContent = curMonth;
+  const saved = LSG(dsKey(target, curMonth)) || {};
+  if(saved.entities && saved.entities.length){
+    _dsEntities = saved.entities;
+  } else if(target !== original){
+    // ריכוז חדש לזוג מקושר - נטע ברירת מחדל עם שתי הישויות יחד
+    _dsEntities = [emptyEntity(getDisplayName(target)), emptyEntity(getDisplayName(original))];
+  } else {
+    _dsEntities = [emptyEntity(getDisplayName(target))];
+  }
+  _dsFunds = saved.funds || [];
+  renderEntities();
+  renderFunds();
+  document.getElementById('dsMonthlyTurnover').value = saved.monthlyTurnover || '';
+  document.getElementById('dsCumulativeTurnover').value = saved.cumulativeTurnover || '';
+  document.getElementById('dsEditView').style.display = '';
+  document.getElementById('dsPreviewView').style.display = 'none';
+  openModal('dataSummaryModal');
+}
+function saveDataSummary(){
+  const entities = readEntitiesFromDom();
+  const funds = readFundsFromDom();
+  const monthlyTurnover = document.getElementById('dsMonthlyTurnover').value;
+  const cumulativeTurnover = document.getElementById('dsCumulativeTurnover').value;
+  LSS(dsKey(_dsClient, curMonth), {entities, funds, monthlyTurnover, cumulativeTurnover});
+  if(db){
+    db.from('tracker_data_summary').upsert({
+      client_name: _dsClient, month: curMonth, entities, funds,
+      monthly_turnover: monthlyTurnover || null, cumulative_turnover: cumulativeTurnover || null,
+      updated_at: new Date().toISOString()
+    }, {onConflict: 'client_name,month'}).then(()=>{}).catch(e => console.error('data summary save failed:', e));
+  }
+  toast('✓ ריכוז נתונים נשמר');
+}
+
+function fmtNum(n){ n = parseFloat(n); return isNaN(n) ? '—' : n.toLocaleString('he-IL'); }
+function fmtDateDs(d){ if(!d) return '—'; const p = d.split('-'); return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : d; }
+
+function buildSummaryHtml(){
+  const entities = readEntitiesFromDom();
+  const funds = readFundsFromDom();
+  const monthly = document.getElementById('dsMonthlyTurnover').value;
+  const cumulative = document.getElementById('dsCumulativeTurnover').value;
+  const clientDisp = getDisplayName(_dsClient);
+  let html = `<div style="direction:rtl">
+    <div style="background:linear-gradient(135deg,#1E3A8A,#2563EB);color:#fff;border-radius:14px 14px 0 0;padding:18px 20px">
+      <div style="font-size:18px;font-weight:800">${clientDisp}</div>
+      <div style="font-size:13px;opacity:.85">ריכוז נתוני דיווח · ${curMonth}</div>
+    </div>`;
+  entities.forEach(e => {
+    html += `<div style="border:1px solid #E2E8F0;border-top:none;padding:16px 20px">
+      <div style="font-weight:700;color:#1E3A8A;margin-bottom:10px">${e.name || clientDisp}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr style="background:#F8FAFC"><td style="padding:6px 8px;font-weight:600">רשות</td><td style="padding:6px 8px;font-weight:600">סכום</td><td style="padding:6px 8px;font-weight:600">מועד תשלום</td></tr>
+        <tr><td style="padding:6px 8px">מע"מ</td><td style="padding:6px 8px">₪${fmtNum(e.maam)}</td><td style="padding:6px 8px">${fmtDateDs(e.maamDue)}</td></tr>
+        <tr><td style="padding:6px 8px">מקדמות מס הכנסה</td><td style="padding:6px 8px">₪${fmtNum(e.mikdamot)}</td><td style="padding:6px 8px">${fmtDateDs(e.mikdamotDue)}</td></tr>
+        <tr><td style="padding:6px 8px">ניכויים מס הכנסה</td><td style="padding:6px 8px">₪${fmtNum(e.nikuyim)}</td><td style="padding:6px 8px">${fmtDateDs(e.nikuyimDue)}</td></tr>
+        <tr><td style="padding:6px 8px">ביטוח לאומי</td><td style="padding:6px 8px">₪${fmtNum(e.bituach)}</td><td style="padding:6px 8px">${fmtDateDs(e.bituachDue)}</td></tr>
+      </table>
+    </div>`;
+  });
+  if(funds.length){
+    html += `<div style="border:1px solid #E2E8F0;border-top:none;padding:16px 20px">
+      <div style="font-weight:700;color:#1E3A8A;margin-bottom:10px">🏦 קופות</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr style="background:#F8FAFC"><td style="padding:6px 8px;font-weight:600">קופה</td><td style="padding:6px 8px;font-weight:600">סכום</td><td style="padding:6px 8px;font-weight:600">מועד</td></tr>
+        ${funds.map(f => `<tr><td style="padding:6px 8px">${f.name||''}</td><td style="padding:6px 8px">₪${fmtNum(f.amount)}</td><td style="padding:6px 8px">${fmtDateDs(f.due)}</td></tr>`).join('')}
+      </table>
+    </div>`;
+  }
+  html += `<div style="border:1px solid #E2E8F0;border-top:none;border-radius:0 0 14px 14px;padding:16px 20px;background:#F0FDF4;display:flex;justify-content:space-around;text-align:center">
+    <div><div style="font-size:12px;color:#64748B">מחזור חודשי</div><div style="font-size:16px;font-weight:800;color:#15803D">₪${fmtNum(monthly)}</div></div>
+    <div><div style="font-size:12px;color:#64748B">מחזור מצטבר</div><div style="font-size:16px;font-weight:800;color:#15803D">₪${fmtNum(cumulative)}</div></div>
+  </div></div>`;
+  return html;
+}
+function buildSummaryText(){
+  const entities = readEntitiesFromDom();
+  const funds = readFundsFromDom();
+  const monthly = document.getElementById('dsMonthlyTurnover').value;
+  const cumulative = document.getElementById('dsCumulativeTurnover').value;
+  let t = `ריכוז נתוני דיווח - ${getDisplayName(_dsClient)} (${curMonth})\n\n`;
+  entities.forEach(e => {
+    t += `${e.name || ''}\n`;
+    t += `מע"מ: ₪${fmtNum(e.maam)} (עד ${fmtDateDs(e.maamDue)})\n`;
+    t += `מקדמות: ₪${fmtNum(e.mikdamot)} (עד ${fmtDateDs(e.mikdamotDue)})\n`;
+    t += `ניכויים: ₪${fmtNum(e.nikuyim)} (עד ${fmtDateDs(e.nikuyimDue)})\n`;
+    t += `ביטוח לאומי: ₪${fmtNum(e.bituach)} (עד ${fmtDateDs(e.bituachDue)})\n\n`;
+  });
+  if(funds.length){
+    t += 'קופות:\n';
+    funds.forEach(f => { t += `${f.name||''}: ₪${fmtNum(f.amount)} (עד ${fmtDateDs(f.due)})\n`; });
+    t += '\n';
+  }
+  t += `מחזור חודשי: ₪${fmtNum(monthly)}\nמחזור מצטבר: ₪${fmtNum(cumulative)}`;
+  return t;
+}
+function showDsPreview(){
+  document.getElementById('dsEditView').style.display = 'none';
+  const view = document.getElementById('dsPreviewView');
+  view.style.display = '';
+  const cd = getClientDataCanonical(_dsClient);
+  const sendPref = cd.sendSal || cd.send || '';
+  view.innerHTML = buildSummaryHtml() + `
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn" onclick="showDsEdit()">← חזרה לעריכה</button>
+      <button class="btn primary" style="flex:1" onclick="sendSummaryEmail()">✉️ שליחה במייל</button>
+      <button class="btn primary" style="flex:1;background:#25D366;border-color:#25D366" onclick="sendSummaryWhatsapp()">💬 שליחה בוואטסאפ</button>
+    </div>
+    ${sendPref ? `<div style="font-size:12px;color:#64748B;margin-top:8px">אופן שליחה מוגדר ללקוח: ${sendPref}</div>` : ''}
+  `;
+}
+function showDsEdit(){
+  document.getElementById('dsPreviewView').style.display = 'none';
+  document.getElementById('dsEditView').style.display = '';
+}
+function sendSummaryEmail(){
+  const cd = getClientDataCanonical(_dsClient);
+  const email = cd.email || '';
+  if(!email) toast('⚠ אין כתובת מייל שמורה ללקוח - פתחתי טופס ריק למילוי');
+  const subject = encodeURIComponent(`ריכוז נתוני דיווח - ${getDisplayName(_dsClient)} - ${curMonth}`);
+  const body = encodeURIComponent(buildSummaryText());
+  window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+}
+function sendSummaryWhatsapp(){
+  const cd = getClientDataCanonical(_dsClient);
+  let phone = (cd.phone||'').replace(/[^0-9]/g,'');
+  if(phone.startsWith('0')) phone = '972' + phone.slice(1);
+  if(!phone) toast('⚠ אין טלפון שמור ללקוח');
+  const text = encodeURIComponent(buildSummaryText());
+  window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
 }
 
 // ── Sheet tabs ──
@@ -2503,7 +2827,7 @@ function buildMasterClientList(){
 function getRawRowsForTab(tab){
   if(tab==='sal'){
     return getRawRowsForTab('vat')
-      .filter(row => { const cd=getClientData(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
+      .filter(row => { const cd=getClientDataCanonical(row[0]); return cd.isEmployer==='כן' && cd.isActive!=='לא'; })
       .map(row => findSalRowForClient(row[0]) || [row[0], row[1], row[2], 'F','F','F','F','F','F', '']);
   }
   // "לקוחות" הוא עכשיו איחוד אמיתי של כל לקוח שהופיע אי-פעם בכל חודש
@@ -2664,6 +2988,47 @@ function editClosingNote(clientName, itemId, label){
 function getClientData(clientName){
   return LSG('bl_cdata_'+clientName.replace(/[^א-ת\w]/g,'_').slice(0,50)) || {};
 }
+// מספר הזיהוי של לקוח - ח.פ/ע.מ אם קיים, אחרת תיק ניכויים (בפועל כמעט תמיד
+// אותו מספר). זה המפתח ה"אמיתי" של לקוח - לא השם, שיכול להיכתב אחרת בכל פעם.
+function getIdKey(cd){
+  return ((cd&&(cd.taxId||cd.nikuyimFile))||'').trim();
+}
+let _identityMapCache = null;
+function buildIdentityMap(){
+  const allNames = new Set();
+  Object.keys(DATA||{}).forEach(month=>{
+    ['v','s'].forEach(k=>{
+      ((DATA[month]&&DATA[month][k])||[]).forEach(r=>allNames.add(r[0]));
+    });
+  });
+  const groups = {};
+  allNames.forEach(name=>{
+    const cd = getClientData(name);
+    const key = getIdKey(cd);
+    if(!key) return;
+    (groups[key] = groups[key]||[]).push({
+      name,
+      score: Object.values(cd).filter(v=>v && String(v).trim()).length
+    });
+  });
+  const nameToCanon = {};
+  Object.values(groups).forEach(list=>{
+    list.sort((a,b)=>b.score-a.score);
+    const canon = list[0].name;
+    list.forEach(item=>{ nameToCanon[item.name] = canon; });
+  });
+  return nameToCanon;
+}
+// מחזיר את "השם הקנוני" של לקוח - אם יש לו ח.פ/תיק ניכויים משותף עם שם אחר
+// שכבר קיים, שניהם ייספרו כאותו לקוח בדיוק (בהתבסס על השם עם הכי הרבה
+// פרטים ממולאים).
+function getCanonicalName(name){
+  if(!_identityMapCache) _identityMapCache = buildIdentityMap();
+  return _identityMapCache[name] || name;
+}
+function getClientDataCanonical(name){
+  return getClientData(getCanonicalName(name));
+}
 // "שם שלד" - מוריד גרשיים/סוגריים/רווחים כדי להשוות שמות חברה גם כשיש
 // הבדלי כתיב קטנים (עם/בלי בע"מ בגרשיים, "(1)", רווח כפול וכו')
 function coreCompanyName(s){
@@ -2728,7 +3093,7 @@ function renderClientsTable(){
   
   const tbody=document.getElementById('clientsTbody');
   tbody.innerHTML=rows.map(row=>{
-    const cd=getClientData(row[0]);
+    const cd=getClientDataCanonical(row[0]);
     const acol=getAcctColor(row[2])||'#888';
     const safe=row[0].replace(/'/g,"\'");
     return `<tr style="${cd.isActive==='לא'?'opacity:.55':''}">
@@ -2746,6 +3111,7 @@ function renderClientsTable(){
 }
 
 function openClientPanel(clientName, type, acct){
+  clientName = getCanonicalName(clientName);
   _cpClient = clientName;
   const cd=getClientData(clientName);
   const acol=getAcctColor(acct)||'#888';
@@ -2859,6 +3225,12 @@ function openClientPanel(clientName, type, acct){
     </div>
 
     <div class="cp-field">
+      <div class="cp-label">🔗 עוסק מקושר (לריכוז נתונים משותף)</div>
+      <input class="cp-input" id="cpLinkedClient" value="${cd.linkedClient||''}" placeholder="שם הלקוח/עסק המקושר, אם יש">
+      <div style="font-size:11px;color:#94A3B8;margin-top:4px">אם ללקוח יש 2 עסקים (חברה + עוסק), קשרי כאן ל"ריכוז נתונים" אחד משותף ששני הכפתורים יפתחו וישלחו ביחד</div>
+    </div>
+
+    <div class="cp-field">
       <div class="cp-label">📝 הערות</div>
       <textarea class="cp-input" id="cpNote" rows="4" style="resize:vertical">${cd.note||''}</textarea>
     </div>
@@ -2888,9 +3260,11 @@ function saveClientPanel(clientName){
     contactMethod: document.getElementById('cpContact')?.value||'',
     note: document.getElementById('cpNote').value.trim(),
     typeOverride: document.getElementById('cpTypeEdit')?.value||undefined,
+    linkedClient: document.getElementById('cpLinkedClient')?.value.trim()||'',
   };
   saveClientData(clientName,cd);
   pushClientData(clientName,cd);
+  _identityMapCache = null;
   closeClientPanel();
   renderClientsTable();
   renderTable();
@@ -2899,7 +3273,7 @@ function saveClientPanel(clientName){
 // שם התצוגה של לקוח - עדיפות לשם החלופי שהוגדר בכרטיס, אחרת השם המקורי
 // (המפתח הפנימי לכל הנתונים ההיסטוריים תמיד נשאר השם המקורי, כדי לא לשבור קישור לנתוני עבר)
 function getDisplayName(clientName){
-  const cd = getClientData(clientName);
+  const cd = getClientDataCanonical(clientName);
   return cd.displayName || clientName;
 }
 
