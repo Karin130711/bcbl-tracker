@@ -990,6 +990,16 @@ function toggleCheck(month, tab, row, idx){
   updateStats();
   renderTable();
   toast('✓ נשמר');
+  // נתוני שכר התקבלו (sal, index 0) → הפקה אוטומטית של דוח נכוחות וניצולים לכל הלקוחות
+  if(tab==='sal' && idx===0 && arr[0]===true){
+    runAttendanceReportGeneration(row[0]);
+  }
+  // תלושים אושרו (sal, index 1) → הפעל אוטומטית הפקת סט השכר לפי מה שהוגדר בכרטיס
+  // הלקוח, וגם הפקת קובץ פקודת שכר (BCBL) הפנימי לכל הלקוחות
+  if(tab==='sal' && idx===1 && arr[1]===true){
+    runPayrollSetGeneration(row[0]);
+    runPayrollOrderFileGeneration(row[0]);
+  }
 }
 
 // ── Rows ──
@@ -1185,11 +1195,13 @@ function _renderTable(){
     <th style="width:66px;text-align:center;font-size:11px">🔍 בקרות</th>
     <th style="width:80px;text-align:center;font-size:11px">📨 שליחת תלושים<br>לאישור המעסיק</th>
     <th style="width:52px;text-align:center;font-size:11px">✔ תלושים<br>אושרו</th>
+    <th style="width:80px;text-align:center;font-size:11px">📦 שליחת סט שכר<br>למעסיק</th>
     <th style="width:70px;text-align:center;font-size:11px">📩 שליחת תלושים<br>לעובדים</th>
     <th style="width:52px;text-align:center;font-size:11px">📋 דיווח<br>ב.לאומי 102</th>
     <th style="width:52px;text-align:center;font-size:11px">💳 ב.לאומי<br>שולם</th>
     <th style="width:66px;text-align:center;font-size:11px">📋 דיווח<br>טופס 100</th>
-    <th style="width:62px;text-align:center;font-size:11px">📄 דיווח<br>ניכויים</th>
+    <th style="width:70px;text-align:center;font-size:11px">📄 דיווח מ.ה.<br>ניכויים 102</th>
+    <th style="width:62px;text-align:center;font-size:11px">💳 מ.ה. ניכויים<br>שולם</th>
     <th style="width:66px;text-align:center;font-size:11px">🏦 סוציאליות<br>נשלח ללקוח</th>
     <th style="width:62px;text-align:center;font-size:11px">✅ סוציאליות<br>דווח</th>
   </tr>`;
@@ -1241,11 +1253,13 @@ function _renderTable(){
       ${curTab==='sal' ? renderBakarotCell(row[0]) : ''}
       ${curTab==='sal' ? renderSlipsSendCell(row[0]) : ''}
       ${curTab==='sal' ? makeCb(cks[1], start+rowIdx, 1) : ''}
+      ${curTab==='sal' ? renderPayrollSetSendCell(row[0]) : ''}
       ${curTab==='sal' ? renderWorkerSlipsCell(row[0], cks[1]) : ''}
       ${curTab==='sal' ? makeCb(cks[4], start+rowIdx, 4) : ''}
       ${curTab==='sal' ? makeCb(cks[5], start+rowIdx, 5) : ''}
       ${curTab==='sal' ? renderForm100Cell(row[0]) : ''}
       ${curTab==='sal' ? renderNikuyimCell(row[0], cks[2], start+rowIdx) : ''}
+      ${curTab==='sal' ? renderNikuyimPaidCell(row[0], cks[3], start+rowIdx) : ''}
       ${curTab==='sal' ? renderSocialSentCell(row[0]) : ''}
       ${curTab==='sal' ? renderSocialReportedCell(row[0], start+rowIdx) : ''}
       ${curTab==='vat' ? (() => {
@@ -2295,6 +2309,19 @@ function renderNikuyimCell(clientName, ckVal, absIdx){
   return makeCb(ckVal, absIdx, 2);
 }
 
+// ── Nikuyim Paid Cell (מ.ה. ניכויים - שולם) ──
+function renderNikuyimPaidCell(clientName, ckVal, absIdx){
+  const relevant = isNikuyimRelevant(clientName);
+
+  // null = N/A (not employer or irrelevant month)
+  if(relevant === null || relevant === false){
+    return '<td style="text-align:center"><span class="cb na" onclick="toggleNA('+absIdx+',3)" title="לא רלוונטי לחודש זה"><svg viewBox="0 0 14 14" width="12"><line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span></td>';
+  }
+
+  // Relevant month → normal checkbox
+  return makeCb(ckVal, absIdx, 3);
+}
+
 // ── Form 100 Cell ──
 function getForm100(n){ return LSG('bl_f100_'+(n||'').replace(/[^א-ת\w]/g,'_').slice(0,40)) || {status:'none'}; }
 function setForm100(n, data){ LSS('bl_f100_'+(n||'').replace(/[^א-ת\w]/g,'_').slice(0,40), data); }
@@ -2352,6 +2379,198 @@ document.addEventListener('click', function(e){
     setForm100(name, {status:'none'});
     renderTable();
     toast('אופס — דיווח אופס');
+  }
+});
+
+// ── Payroll Set Send to Employer Cell ──
+// Status flow: none → generating (auto, on slip approval) → ready (reports done,
+// waiting for a manual click) → sending (after the click) → sent / error
+function getPayrollSetSend(n){ return LSG('bl_paysetsend_'+(n||'').replace(/[^א-ת\w]/g,'_').slice(0,40)) || {status:'none'}; }
+function setPayrollSetSend(n, data){ LSS('bl_paysetsend_'+(n||'').replace(/[^א-ת\w]/g,'_').slice(0,40), data); }
+
+function renderPayrollSetSendCell(clientName){
+  const ps = getPayrollSetSend(clientName);
+  const enc = encodeURIComponent(clientName);
+  const isChecked = ps.status && ps.status !== 'none';
+  const inProgress = ps.status==='generating' || ps.status==='sending';
+
+  const colorByStatus = {
+    sent:'#16A34A', error:'#DC2626', ready:'#2563EB', generating:'#D97706', sending:'#D97706'
+  };
+  const svgColor = colorByStatus[ps.status] || '#D97706';
+  const cbStyle = isChecked ? 'background:'+svgColor+'22;border-color:'+svgColor : '';
+  const title = ps.status==='ready' ? 'הדוחות מוכנים — לחצי לשליחה למעסיק'
+    : ps.status==='generating' ? 'מפיקה דוחות...'
+    : ps.status==='sending' ? 'שולח...'
+    : ps.status==='sent' ? 'נשלח — לחצי לביטול'
+    : ps.status==='error' ? 'שגיאה — לחצי לניסיון נוסף'
+    : 'סמני לשליחת סט שכר למעסיק';
+
+  const cb = '<span class="cb payset-cb '+(isChecked?'done':'')+'" data-name="'+enc+'" style="'+cbStyle+'" title="'+title+'">' +
+    (isChecked && !inProgress ? '<svg viewBox="0 0 14 14" width="12"><polyline points="2,7 6,11 12,3" fill="none" stroke="'+svgColor+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '') +
+    '</span>';
+
+  let result = '';
+  if(ps.status === 'sent'){
+    result = '<span class="payset-reset" data-name="'+enc+'" style="font-size:9px;font-weight:700;background:#F0FDF4;color:#16A34A;padding:1px 5px;border-radius:6px;cursor:pointer;margin-top:2px;display:block" title="נשלח ב-'+(ps.ts?new Date(ps.ts).toLocaleDateString('he-IL'):'')+'">✓ נשלח</span>';
+  } else if(ps.status === 'ready'){
+    result = '<span class="payset-send" data-name="'+enc+'" style="font-size:9px;font-weight:700;background:#EFF6FF;color:#2563EB;padding:1px 5px;border-radius:6px;cursor:pointer;margin-top:2px;display:block" title="הדוחות מוכנים — לחצי לשליחה">📦 מוכן לשליחה</span>';
+  } else if(ps.status === 'error'){
+    result = '<span class="payset-reset" data-name="'+enc+'" style="font-size:9px;font-weight:700;background:#FEF2F2;color:#DC2626;padding:1px 5px;border-radius:6px;cursor:pointer;margin-top:2px;display:block" title="שגיאה — לחצי לניסיון נוסף">✗ שגיאה</span>';
+  } else if(ps.status === 'generating'){
+    result = '<span style="font-size:8px;color:#D97706;margin-top:2px;display:block">⏳ מפיקה דוחות...</span>';
+  } else if(ps.status === 'sending'){
+    result = '<span style="font-size:8px;color:#D97706;margin-top:2px;display:block">⏳ שולח...</span>';
+  }
+
+  return '<td style="text-align:center"><div style="display:flex;flex-direction:column;align-items:center;gap:1px">'+cb+result+'</div></td>';
+}
+
+// כאשר "נתוני שכר התקבלו?" מסומן: מפיקה אוטומטית (לכל הלקוחות, ללא תלות
+// בסט הדוחות האישי שהוגדר להם) את דוח הנוכחות והניצולים ב-Excel.
+function runAttendanceReportGeneration(clientName){
+  const cd = getClientDataCanonical(clientName);
+  if(!cd.michpalNo){
+    toast('⚠️ אין מספר לקוח במיכפל ל-'+clientName.slice(0,20)+' — לא ניתן להפיק דוח נוכחות וניצולים');
+    return;
+  }
+  const [payrollMonth, payrollYearShort] = (curMonth||'').split('/');
+  const payrollYear = payrollYearShort ? '20'+payrollYearShort : '';
+  toast('🐍 שולחת ל-Python: מפיקה דוח נוכחות וניצולים (Excel) עבור '+clientName.slice(0,20)+'...');
+  setTimeout(()=>{
+    // TODO Phase 2: לקרוא לסקריפט/API הפייתון בפועל:
+    // fetch('/api/generate-reports', {method:'POST', body: JSON.stringify({
+    //   client: clientName, michpalNo: cd.michpalNo, month: payrollMonth, year: payrollYear,
+    //   reports: ['דוח נכוחות וניצולים (Excel)']
+    // })})
+    toast('✓ דוח נוכחות וניצולים הופק — '+clientName.slice(0,20));
+  }, 1200);
+}
+
+// כאשר "תלושים אושרו" מסומן: מפיקה אוטומטית (לכל הלקוחות, בנוסף לסט
+// הדוחות האישי) את קובץ פקודת השכר הפנימי (BCBL).
+function runPayrollOrderFileGeneration(clientName){
+  const cd = getClientDataCanonical(clientName);
+  if(!cd.michpalNo){
+    toast('⚠️ אין מספר לקוח במיכפל ל-'+clientName.slice(0,20)+' — לא ניתן להפיק קובץ פקודת שכר');
+    return;
+  }
+  const [payrollMonth, payrollYearShort] = (curMonth||'').split('/');
+  const payrollYear = payrollYearShort ? '20'+payrollYearShort : '';
+  toast('🐍 שולחת ל-Python: מפיקה קובץ פקודת שכר (BCBL) עבור '+clientName.slice(0,20)+'...');
+  setTimeout(()=>{
+    // TODO Phase 2: לקרוא לסקריפט/API הפייתון בפועל:
+    // fetch('/api/generate-reports', {method:'POST', body: JSON.stringify({
+    //   client: clientName, michpalNo: cd.michpalNo, month: payrollMonth, year: payrollYear,
+    //   reports: ['קובץ פקודת שכר (BCBL)']
+    // })})
+    toast('✓ קובץ פקודת שכר (BCBL) הופק — '+clientName.slice(0,20));
+  }, 1200);
+}
+
+// כאשר "תלושים אושרו" מסומן: מאתרת את סט הדוחות שהוגדר למעסיק בכרטיס
+// הלקוח (אילו דוחות נשלחים), "שולחת לפייתון" להפיק אותם, ועוצרת שם —
+// השליחה בפועל למעסיק קורית רק בלחיצה ידנית נפרדת על "📦 מוכן לשליחה".
+function runPayrollSetGeneration(clientName){
+  const cd = getClientDataCanonical(clientName);
+  const reports = cd.salReportsSent || [];
+  if(!reports.length){
+    toast('⚠️ לא הוגדר סט דוחות ל-'+clientName.slice(0,20)+' — יש להגדיר בכרטיס הלקוח');
+    return;
+  }
+  if(!cd.michpalNo){
+    toast('⚠️ אין מספר לקוח במיכפל ל-'+clientName.slice(0,20)+' — יש להשלים בכרטיס הלקוח לפני ההפקה');
+    return;
+  }
+  // curMonth בפורמט MM/YY (כפי שמוצג בטאבים בדשבורד) → פירוק לחודש/שנה מפורשים לצורך הפייתון
+  const [payrollMonth, payrollYearShort] = (curMonth||'').split('/');
+  const payrollYear = payrollYearShort ? '20'+payrollYearShort : '';
+
+  setPayrollSetSend(clientName, {status:'generating', ts: new Date().toISOString()});
+  renderTable();
+  toast('🐍 שולחת ל-Python: מפיקה '+reports.length+' דוחות עבור '+clientName.slice(0,20)+' · חודש '+curMonth+'...');
+
+  setTimeout(()=>{
+    // TODO Phase 2: לקרוא לסקריפט/API הפייתון בפועל, עם כל הנתונים הדרושים
+    // כדי להפיק בדיוק את הדוחות הנכונים ללקוח, לחודש ולשנת השכר הרלוונטיים:
+    // fetch('/api/generate-reports', {method:'POST', body: JSON.stringify({
+    //   client: clientName,
+    //   michpalNo: cd.michpalNo,   // מספר הלקוח במיכפל - מזהה את החברה מול המערכת
+    //   month: payrollMonth,       // חודש השכר (למשל '06')
+    //   year: payrollYear,        // שנת השכר (למשל '2026')
+    //   reports                    // רשימת הדוחות המבוקשים מכרטיס הלקוח
+    // })})
+    setPayrollSetSend(clientName, {status:'ready', ts: new Date().toISOString(), reports});
+    renderTable();
+    toast('✓ הופקו '+reports.length+' דוחות עבור '+clientName.slice(0,20)+' — מוכנים לשליחה למעסיק');
+  }, 1400);
+}
+
+// שליחה בפועל למעסיק - מופעלת רק בלחיצה ידנית (לא אוטומטית)
+function runPayrollSetSend(clientName){
+  const cd = getClientData(clientName);
+  const vatRows = (DATA[curMonth]?.v)||[];
+  const name = (clientName||'').trim();
+  const vatRow = vatRows.find(r=>{const vn=(r[0]||'').trim();return vn===name||name.startsWith(vn)||vn.startsWith(name);});
+  const cdReal = vatRow ? getClientData(vatRow[0]) : cd;
+  const phone = (cdReal.phone||'').replace(/[^0-9]/g,'');
+  const email = cdReal.email||'';
+  const contact = cdReal.contactMethod||'';
+
+  setPayrollSetSend(clientName, {status:'sending', ts: new Date().toISOString()});
+  renderTable();
+  toast('📦 שולחת סט שכר למעסיק...');
+
+  setTimeout(()=>{
+    const msg = encodeURIComponent('שלום, מצורף סט השכר המלא לחודש '+curMonth+'.\nבן חיים בר לב רואי חשבון');
+    let sent = false;
+    if(phone && (contact==='whatsapp'||!contact||contact==='both')){
+      window.open('https://wa.me/972'+phone.replace(/^0/,'')+'?text='+msg, '_blank');
+      sent = true;
+    } else if(email && (contact==='email'||(!phone&&!contact)||contact==='both')){
+      window.location.href='mailto:'+email+'?subject=סט+שכר+'+curMonth+'&body='+msg;
+      sent = true;
+    }
+    if(sent){
+      setPayrollSetSend(clientName, {status:'sent', ts: new Date().toISOString()});
+      toast('✓ סט שכר נשלח למעסיק — '+clientName.slice(0,20));
+    } else {
+      setPayrollSetSend(clientName, {status:'error', ts: new Date().toISOString(), reason: 'אין פרטי קשר'});
+      toast('⚠️ לא נמצאו פרטי קשר ללקוח');
+    }
+    renderTable();
+  }, 1000);
+}
+
+// Event delegation for payroll set send
+document.addEventListener('click', function(e){
+  const sendBtn = e.target.closest('.payset-send');
+  if(sendBtn){
+    runPayrollSetSend(decodeURIComponent(sendBtn.dataset.name));
+    return;
+  }
+  const cb = e.target.closest('.payset-cb');
+  if(cb){
+    const name = decodeURIComponent(cb.dataset.name);
+    const ps = getPayrollSetSend(name);
+    if(ps.status === 'generating' || ps.status === 'sending'){
+      toast('⏳ פעולה כבר בתהליך, נא להמתין');
+    } else if(ps.status === 'sent'){
+      setPayrollSetSend(name, {status:'none'});
+      renderTable();
+      toast('שליחה בוטלה');
+    } else {
+      // 'none', 'ready' או 'error' → שליחה ידנית עכשיו
+      runPayrollSetSend(name);
+    }
+    return;
+  }
+  const reset = e.target.closest('.payset-reset');
+  if(reset){
+    const name = decodeURIComponent(reset.dataset.name);
+    setPayrollSetSend(name, {status:'none'});
+    renderTable();
+    toast('אופס — שליחה אופסה');
   }
 });
 
@@ -2932,6 +3151,31 @@ function importData(input){
 // ── Pre-loaded client data from Excel ──
 const EXCEL_CLIENT_DATA = {"חגי בן דוד": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "316030741"}, "א.מ.ל.א.י. - אמנים ומוזיקאים ל": {"send": "דיגטלי", "type": "מלכ\"ר", "taxId": "580452829"}, "גרוענברג משה דוד-(סים זול)": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "320657430"}, "אדמון וצר שני": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "35926492"}, "אדמון עידו": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "32039422"}, "וויס אלחנן": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "207740572"}, "אזיקרי אבי": {"send": "ידני", "type": "עוסק מורשה", "taxId": "22211924"}, "כהן יעקב": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "43231398"}, "אלקופלסט בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "514330091"}, "להב חני": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "31468895"}, "כהן ידידיה": {"send": "ידני", "type": "עוסק מורשה", "taxId": "38084190"}, "משה פופוביץ": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "52990207"}, "אלטמן עירן": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "34104224"}, "דוכיפת טי.איי. בע\"מ-(סייג')": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "514324334"}, "בידרמן דניאל ללא רלוונטי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "200349207"}, "עובדיה יעל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "60412798"}, "המלך דוד מכירות פומביו": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515795367"}, "אשכנזי ישי גדליה": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "21372479"}, "המכללה למדינאות ע\"ש עדו זולדן": {"send": "דיגטלי", "type": "עמותה -מלכ\"ר", "taxId": "923570758"}, "בורק תומר": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "38820379"}, "אורי בארי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "313350068"}, "זאוש ניסים ישראל יוס": {"send": "דיגטלי", "type": "עוסק מורשה", "taxId": "200192631"}, "בן חיים ישראל צבי -לבדוק": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "39273594"}, "איילברג פסח": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "327341459"}, "וילקובסקי רותם אבי סגור": {"send": "דיגטלי", "type": "עוסק מורשה", "taxId": "311240162"}, "דוד לרנר יקטרינה": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "322087917"}, "טנא ירוק": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515526150"}, "אסרף מרדכי מיקי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "57362303"}, "י.מ שופן 2015 בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515246965"}, "ברזאני אליזבת אליס": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "31582752"}, "ברחד מיטל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "39341698"}, "ברנדל שוורץ תחיה": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "33385295"}, "זבצקי אסתר ומנחם": {"send": "דיגטלי", "type": "עוסק מורשה", "taxId": "557211877"}, "מסיקה אלירן": {"send": "דיגטלי", "type": "עוסק מורשה", "taxId": "36605632"}, "גליפלסט -יעקוביאן": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": ""}, "גלעד ביטון": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "305503849"}, "יקבי דרימיה בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515469849"}, "דהן יהונתן": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "66731761"}, "לתת פה - תכניות מוגנות לילדים (7)": {"send": "דיגטלי", "type": "עמותה -מלכ\"ר", "taxId": "943358655"}, "מרין שיפ פאסט בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515914547"}, "גרינהוס שחר": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "39053053"}, "וינברגר משה יוסף- חני": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "301556189"}, "דוד איתי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "33447780"}, "מצה ארנון": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "40541625"}, "ישי בית און עו\"ד": {"send": "ידני", "type": "חברה מורשית", "taxId": "557025186"}, "דלויה ראובן חיים": {"send": "ידני", "type": "עוסק מורשה", "taxId": "311551394"}, "חלי חיה חלבי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "36681351"}, "יוסופוב ג\"סיקה": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "209040260"}, "הלפרן בן דב יוסף-יצחק": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "33050527"}, "הלר עידו": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": ""}, "סייג": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515151728"}, "כלפה יהונתן ארז": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "65666604"}, "אייל יוסופוב": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": ""}, "סימפלי ליד בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "516499480"}, "לב יגאל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "36841492"}, "וילנסקי אביעד": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "37375169"}, "לוין יהושע": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "51382331"}, "מגארי זהר - כפר הנופש בית חורון": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "58265208"}, "מימון יאיר": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "43425081"}, "עו\"ד נועם צוקר": {"send": "דיגטלי", "type": "חברה", "taxId": "516406170"}, "פופטין בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515584001"}, "פידו סולשנז ישראל בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515299055"}, "פרופיס שירותי חשבונאות": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "516304938"}, "נסים אמיתי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "21682869"}, "סמוי לאם": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "13770730"}, "יוחה אילנה": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "316"}, "יוחה אליעזר": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "14260590"}, "אלקסלסי גיורא שמעון": {"send": "ידני", "type": "עוסק מורשה", "taxId": "59283382"}, "אלקסלסי משטחים מעוצבים": {"send": "ידני", "type": "חברה מורשית", "taxId": "512337056"}, "אמינוב איסק": {"send": "ידני", "type": "עוסק מורשה", "taxId": "14668180"}, "בסטלאב - תעשיות בע\"מ": {"send": "ידני", "type": "חברה מורשית", "taxId": "515024354"}, "טפירו ארז": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "33763111"}, "כרמלי": {"send": "אפליקציה", "type": "חברה", "taxId": ""}, "אריה פולק": {"send": "ידני", "type": "עוסק מורשה", "taxId": ""}, "בר גבי": {"send": "ידני", "type": "עוסק מורשה", "taxId": "63588230"}, "בר לב מריאן": {"send": "ידני", "type": "עוסק מורשה", "taxId": "11954112"}, "יוסף חי אביהו": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "26593210"}, "פיבקו ישראל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "54221973"}, "גודוביץ בר - פתרונות א": {"send": "ידני", "type": "חברה מורשית", "taxId": "514358498"}, "גמא תקשורת (א. פולק) ב": {"send": "ידני", "type": "חברה מורשית", "taxId": "510793276"}, "גמא תקשורת והנדסה (א.": {"send": "ידני", "type": "חברה מורשית", "taxId": "511189656"}, "גני מלחים": {"send": "ידני", "type": "חברה", "taxId": "516774197"}, "ווידמיד": {"send": "ידני", "type": "חברה מורשית", "taxId": "515024354"}, "פיטוסי סימון מישל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "304490980"}, "טכנולוגיות חכמות לרפוא": {"send": "ידני", "type": "חברה מורשית", "taxId": "515357986"}, "י. אמינוב פרוייקטים בע": {"send": "ידני", "type": "חברה מורשית", "taxId": "513278325"}, "יותם כהן בע\"מ": {"send": "משולב", "type": "חברה מורשית", "taxId": "516457728"}, "פיקו גדעון": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "317573103"}, "חץ טבע בע\"מ-סגור": {"send": "ידני", "type": "חברה מורשית", "taxId": "515081560"}, "רצבי דניאלה": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "301807988"}, "נתי (כרמלי)": {"send": "אפליקציה", "type": "", "taxId": ""}, "אינסה רבינוביץ": {"send": "", "type": "", "taxId": ""}, "גלית (רכמלי)": {"send": "משולב", "type": "", "taxId": ""}, "חנה אולמן": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": ""}, "מדר אביחי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "302501911"}, "אביטל ושירה תכנון ועיצ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515944437"}, "אלבריוס בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "516538683"}, "אלון ספרים": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "43231398"}, "ארנסט אלעד הלל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "39996913"}, "בן-אבו אלון": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "319027330"}, "אופקטרא בע\"מ": {"send": "ידני", "type": "חברה מורשית", "taxId": "511242125"}, "בן חיים בר לב - פיננסי": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "516463254"}, "לוחיפלסט בע\"מ": {"send": "ידני", "type": "חברה מורשית", "taxId": "511001885"}, "מיטב הדרים אשדוד בע\"מ": {"send": "ידני", "type": "חברה מורשית", "taxId": "514758622"}, "מיטב נכסים": {"send": "ידני", "type": "חברה מורשית", "taxId": "511258436"}, "מיטב מניב": {"send": "ידני", "type": "עוסק מורשה", "taxId": "557650751"}, "בר לב בן חיים קארין": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "34589929"}, "מלובני ערן": {"send": "ידני", "type": "עוסק מורשה", "taxId": "33184482"}, "סטליק אורן": {"send": "ידני", "type": "עוסק מורשה", "taxId": "27157866"}, "סטרליץ": {"send": "ידני", "type": "שותפות", "taxId": ""}, "מרפאת די אנ אי": {"send": "אפליקציה", "type": "שותפות", "taxId": ""}, "דימטק בע\"מ": {"send": "ידני", "type": "חברה מורשית", "taxId": "511427163"}, "משפחה במרכז\" (ע\"ר)": {"send": "ידני", "type": "מלכ\"ר", "taxId": "580680668"}, "דרור בונים עתיד בע\"מ": {"send": "דיגטלי", "type": "חברה", "taxId": "517088340"}, "הגן של טניה בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "515457984"}, "המרכז הישראלי לאורטופד": {"send": "ידני", "type": "חברה מורשית", "taxId": "513129973"}, "עובדיה צמח": {"send": "ידני", "type": "עוסק מורשה", "taxId": "45780178"}, "חיים בתנועה": {"send": "ידני", "type": "עמותה -מלכ\"ר", "taxId": "580774321"}, "מרפאת דנידו": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": ""}, "נספק תחנות דלק בע\"מ": {"send": "ידני", "type": "חברה מורשית", "taxId": "513461095"}, "סים זול בע\"מ": {"send": "דיגטלי", "type": "חברה מורשית", "taxId": "514491422"}, "גרינמן שירה": {"send": "אפליקציה", "type": "עוסק פטור- מקדמות", "taxId": "60174638"}, "אכא - עמותה לקידום חינוך הוליס": {"send": "ידני", "type": "מלכ\"ר", "taxId": "580676427"}, "רכגולד": {"send": "", "type": "", "taxId": ""}, "בגובה העיניים- חינוך לגיל הרך": {"send": "ידני", "type": "עמותה -מלכ\"ר", "taxId": "943372052"}, "רכגולד למדא": {"send": "ידני", "type": "חברה מורשית", "taxId": ""}, "רכגולד נטסקול": {"send": "ידני", "type": "חברה מורשית", "taxId": ""}, "שופן תרגומים בע\"מ": {"send": "ידני", "type": "חברה מורשית", "taxId": "512348038"}, "לברטובסקי מיטל נחמה": {"send": "דיגטלי", "type": "עוסק פטור- מקדמות", "taxId": "43045053"}, "העצמה בחינוך (ע\"ר)": {"send": "ידני", "type": "מלכ\"ר", "taxId": "580670834"}, "חמדת יהודה (ע\"ר)": {"send": "ידני", "type": "מלכ\"ר", "taxId": "580294478"}, "לוי ערן דוד": {"send": "דיגטלי", "type": "עוסק פטור- מקדמות", "taxId": "41246489"}, "יניב מזרחי": {"send": "ידני- דרך אביה", "type": "עוסק מורשה", "taxId": ""}, "נאמן אלון מרדכי": {"send": "דיגטלי", "type": "עוסק פטור- מקדמות", "taxId": "60743069"}, "טניס לכולם 2019 (ע\"ר)": {"send": "ידני", "type": "מלכ\"ר", "taxId": "580684090"}, "טאצ\"אפ אי אס בע\"מ": {"send": "משולב", "type": "חברה מורשית", "taxId": "516617727"}, "חומוס הרב אליהו פ\"ת בע- סגור": {"send": "משולב", "type": "חברה מורשית", "taxId": "515342350"}, "פלייטמן איבון": {"send": "דיגטלי", "type": "עוסק פטור- מקדמות", "taxId": "17578469"}, "חינוך אישי ערכי לגיל הרך )ע\"ר(": {"send": "משולב", "type": "מלכ\"ר", "taxId": "580669414"}, "סמילנסקי מיכאל": {"send": "דיגטלי", "type": "עוסק פטור- מקדמות", "taxId": ""}, "נטע שיק": {"send": "אפליקציה", "type": "עוסק פטור - מקדמות", "taxId": "66389933"}, "אלחרר שי ניסים": {"send": "אפליקציה", "type": "עוסק פטור- מקדמות", "taxId": ""}, "בית כנסת חבורת ש\"ס - בית שמש )": {"send": "ידני", "type": "מלכ\"ר", "taxId": "580459600"}, "להופיע להשפיע בע\"מ (1)": {"send": "משולב", "type": "חברה מורשית", "taxId": "516152683"}, "פרנקל דוד": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "328879374"}, "קאפח אלראי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "32543852"}, "שמואל דונט": {"send": "אפליקציה", "type": "עוסק פטור-מקדמות", "taxId": ""}, "פירסטלי דיגיטל מרקטינג": {"send": "משולב", "type": "חברה מורשית", "taxId": "515947307"}, "רובינשטיין איתן יהודה": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "17923814"}, "רוזנן יובל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "32390387"}, "ועד העדה השומרונית בישראל )ע\"ר": {"send": "ידני", "type": "מלכ\"ר", "taxId": "580086023"}, "מסיקה טק בע\"מ": {"send": "משולב", "type": "חברה מורשית", "taxId": "516283181"}, "שמואלי עקיבא": {"send": "משולב", "type": "עוסק מורשה", "taxId": "38834149"}, "עומר ברזילי": {"send": "אפליקציה", "type": "עוסק פטור-מקדמות", "taxId": ""}, "סיון חאיק": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "21587423"}, "אדוונסד ממטק בע\"מ": {"send": "", "type": "חברה מורשית", "taxId": "514326461"}, "קשר אישי - חינוך לגיל הרך בגיש": {"send": "ידני", "type": "מלכ\"ר", "taxId": "580669646"}, "בן חיים בר לב-רואי חשב": {"send": "", "type": "עוסק מורשה", "taxId": "558440061"}, "סמילנסקי יוליה": {"send": "אפליקציה", "type": "עוסק פטור", "taxId": "306686403"}, "כאש פיננס בע\"מ": {"send": "", "type": "חברה מורשית", "taxId": "516136892"}, "י. ח. להב יעוץ פיננסי": {"send": "", "type": "חברה מורשית", "taxId": "513431577"}, "רגב ניר": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "31902836"}, "עשוש אבי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "321561235"}, "מ.ש.כ.י.ר רכוש בע\"מ": {"send": "", "type": "חברה מורשית", "taxId": "515175461"}, "סנסוס": {"send": "", "type": "חברה", "taxId": ""}, "שלום ימיני": {"send": "אפליקציה", "type": "עוסק פטור - מקדמות", "taxId": "301689956"}, "שדה אמיר": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "28992394"}, "קריתי נופר": {"send": "אפליקציה", "type": "עוסק פטור", "taxId": "32205684"}, "שמואלי ענהאל הדסה": {"send": "משולב", "type": "עוסק פטור- מקדמות", "taxId": "66679267"}, "שירלי גרפונקל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": ""}, "שפרן קוה דוד": {"send": "משולב", "type": "עוסק מורשה", "taxId": "40714156"}, "המסלול -לעידוד נוער לשרות צבאי (18)": {"send": "", "type": "מלכ\"ר", "taxId": "580688646"}, "רפאלי עינת": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "37516283"}, "שמעוני דקלה": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "38010591"}, "כהן שורמן ניניה": {"send": "", "type": "עוסק פטור- מקדמות", "taxId": "661254920"}, "שמש יוסי": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "16348948"}, "שני יואב": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "301192282"}, "הלכט-חש אחת או 0": {"send": "", "type": "חברה מורשית", "taxId": "516338100"}, "בן ששון בנימין": {"send": "", "type": "עוסק פטור- מקדמות", "taxId": "204723498"}, "החברים של ג\"וחא (ע\"ר)": {"send": "", "type": "מלכ\"ר", "taxId": "580634731"}, "הראל יוסי וחן": {"send": "", "type": "עוסק פטור- מקדמות", "taxId": ""}, "חלוצי יצחק": {"send": "", "type": "עוסק מורשה", "taxId": "46612057"}, "מרפאות ד\"ר ורבר בע\"מ": {"send": "", "type": "חברה מורשית", "taxId": "512040130"}, "ששון שלמה זהר": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "66139577"}, "קנונוב ולריה": {"send": "", "type": "עוסק מורשה", "taxId": "322116096"}, "תגרי איל": {"send": "אפליקציה", "type": "עוסק מורשה", "taxId": "54781737"}, "נריה מויאל": {"send": "", "type": "עוסק פטור- מקדמות", "taxId": ""}, "ברונו": {"send": "", "type": "", "taxId": ""}, "יקבי דרמיה": {"send": "", "type": "", "taxId": ""}, "מרפאת": {"send": "", "type": "", "taxId": ""}, "זרם": {"send": "", "type": "", "taxId": ""}, "כרמלי פלדמן אדריכלים": {"taxId": "515335925", "send": "", "type": ""}, "העצמה בחינוך (ע\"ר) 15": {"taxId": "580670834", "send": "", "type": ""}, "וינר ישראל": {"taxId": "211723812", "send": "", "type": ""}, "אביטל ושירה תכנון ועיצוב": {"taxId": "515944437", "send": "", "type": ""}, "אבי עשוש": {"taxId": "94327521400", "send": "", "type": ""}, "גדלים מאהבה - חינוך לגיל הרך )": {"taxId": "943375642", "send": "", "type": ""}, "וייס אלחנן מרדכי": {"taxId": "207740572", "send": "", "type": ""}, "טאצ אפ": {"taxId": "516617727", "send": "", "type": ""}, "טנא ירוק משק עמוסי בע\"": {"taxId": "515526150", "send": "", "type": ""}, "יקבי דרימיה": {"taxId": "515469849", "send": "", "type": ""}, "מיטב תעשיות רוטבים בעמ": {"taxId": "557650751", "send": "", "type": ""}, "מרחבי חינוך-15": {"taxId": "580681179", "send": "", "type": ""}, "ישי בית און עו\"ד-": {"taxId": "557025186", "send": "", "type": ""}, "פופוביץ משה (18)": {"taxId": "52990207", "send": "", "type": ""}, "שבילי כפיר לגיל הרך": {"taxId": "580819274", "send": "", "type": ""}};
 
+// ── Michpal client data (מספר לקוח במיכפל), from רשימת חברות במיכפל ──
+const MICHPAL_DATA = [{"name": "א.מ.ל.א.י. - אמנים ומוזיקאים", "nik": "943238956", "michpal": "97"}, {"name": "אביטל ושירה תכנון ועיצוב פנים", "nik": "945490175", "michpal": "85"}, {"name": "אדמון עידו", "nik": "902248301", "michpal": "212"}, {"name": "אכא- עמותה לקידום חינוך הוליסט", "nik": "943379636", "michpal": "50"}, {"name": "אל - גד אבישג", "nik": "945498616", "michpal": "1"}, {"name": "אלון ספרים (יעקב כהן)", "nik": "941839490", "michpal": "223"}, {"name": "אלקופלסט בע\"מ", "nik": "921257044", "michpal": "24"}, {"name": "אלקסלסי משטחים מעוצבים בע\"מ", "nik": "926547928", "michpal": "87"}, {"name": "בגובה העיניים ע\"ר", "nik": "943372052", "michpal": "131"}, {"name": "בייבי קלאב רשת גני י", "nik": "939752259", "michpal": "76"}, {"name": "בסטלאב - תעשיות בע\"מ", "nik": "921612339", "michpal": "5"}, {"name": "ברונו ארט גרופ", "nik": "935350827", "michpal": "222"}, {"name": "גודוביץ בר פתרונות אורטופדיים בע\"מ", "nik": "917361792", "michpal": "3"}, {"name": "גמא תקשורת", "nik": "939610135", "michpal": "75"}, {"name": "גמא תקשורת והנדסה", "nik": "939242681", "michpal": "73"}, {"name": "גני המלחים בע\"מ", "nik": "936429810", "michpal": "162"}, {"name": "ד\"ר איל תגרי", "nik": "941514598", "michpal": "12"}, {"name": "דוד רכגולד ושות' חברה בע\"מ", "nik": "930625322", "michpal": "110"}, {"name": "דימטק בע\"מ/שיווק אל", "nik": "921176905", "michpal": "28"}, {"name": "דרור בונים עתיד בע\"מ", "nik": "952761948", "michpal": "170"}, {"name": "החברים של ג'וחא", "nik": "943357939", "michpal": "202"}, {"name": "המכללה למדינאות", "nik": "923570758", "michpal": "120"}, {"name": "המכללה למדינאות ספקים", "nik": "923570758", "michpal": "119"}, {"name": "המכללה למדינאות ספקים 2", "nik": "923570758", "michpal": "122"}, {"name": "המלך דוד מכירות פומביות בע\"מ", "nik": "941801854", "michpal": "72"}, {"name": "המסלול", "nik": "943387019", "michpal": "79"}, {"name": "העצמה בחינוך ע\"ר", "nik": "943374363", "michpal": "38"}, {"name": "ווידמד טכנולוגיות בע\"מ", "nik": "918063009", "michpal": "2"}, {"name": "וייס אלחנן מרדכי", "nik": "945578938", "michpal": "211"}, {"name": "וילנסקי אביעד", "nik": "936452143", "michpal": "208"}, {"name": "ועד העדה השומרונית ב", "nik": "932023112", "michpal": "17"}, {"name": "זוהר מגארי", "nik": "945511475", "michpal": "213"}, {"name": "זרם סטרליץ", "nik": "935248971", "michpal": "19"}, {"name": "חבורת ש\"ס בית שמש ע\"ר", "nik": "943406264", "michpal": "201"}, {"name": "חוה רוזנר", "nik": "945316610", "michpal": "220"}, {"name": "חיים בתנועה ע\"ר", "nik": "943432096", "michpal": "200"}, {"name": "חינוך אישי לגיל הרך", "nik": "943374348", "michpal": "33"}, {"name": "טאצ' אפ אי אס בע\"מ", "nik": "924679376", "michpal": "129"}, {"name": "טנא ירוק", "nik": "902272731", "michpal": "219"}, {"name": "טניס לכולם", "nik": "936286277", "michpal": "135"}, {"name": "י. אמינוב פרוייקטים בע\"מ", "nik": "939582961", "michpal": "105"}, {"name": "י.מ שופן 2015 בע\"מ", "nik": "926664897", "michpal": "40"}, {"name": "יאיר מיימון", "nik": "945508208", "michpal": "90"}, {"name": "יוסף חי אביהו", "nik": "925526477", "michpal": "106"}, {"name": "יותם כהן בע\"מ", "nik": "941843013", "michpal": "204"}, {"name": "יעל עובדיה", "nik": "924343775", "michpal": "203"}, {"name": "יעקוביאן ראובן \"גליפלסט\"", "nik": "930610415", "michpal": "69"}, {"name": "יקבי דרימיה בע\"מ", "nik": "952635761", "michpal": "42"}, {"name": "ישי בית און", "nik": "935473900", "michpal": "121"}, {"name": "כרמלי פלדמן אדריכלים", "nik": "936148352", "michpal": "754"}, {"name": "לוחיפלסט בעמ פלסטיק", "nik": "930814397", "michpal": "15"}, {"name": "לתת פה", "nik": "943358655", "michpal": "41"}, {"name": "מיטב מניב (י.כ) בע\"מ", "nik": "935078873", "michpal": "39"}, {"name": "מישל פיטוסי", "nik": "941834327", "michpal": "109"}, {"name": "מכינה קדם צבאית-חמדת יהודה", "nik": "943156968", "michpal": "20"}, {"name": "מסיקה טק בע\"מ", "nik": "926782467", "michpal": "111"}, {"name": "מרין שיפ פאסט", "nik": "910924042", "michpal": "103"}, {"name": "מרכז ופרצת ע\"ר", "nik": "923477186", "michpal": "78"}, {"name": "מרפאת דנידו - טיפולי אסתטיקה בע\"מ", "nik": "936511682", "michpal": "224"}, {"name": "משה פופוביץ", "nik": "941813925", "michpal": "54"}, {"name": "משפחה במרכז", "nik": "943382655", "michpal": "63"}, {"name": "סטליק אורן - גן אור", "nik": "923482723", "michpal": "115"}, {"name": "סייג' פרופיט מודלס בע\"מ", "nik": "921551271", "michpal": "77"}, {"name": "סים זול בע\"מ", "nik": "925335184", "michpal": "150"}, {"name": "סימפלי ליד בע\"מ", "nik": "907547889", "michpal": "116"}, {"name": "סנסוסלאבז.אייאו בע\"מ", "nik": "923875504", "michpal": "218"}, {"name": "עומרי רוזנר - הכוורת", "nik": "945441541", "michpal": "205"}, {"name": "פופטין בע\"מ", "nik": "936188002", "michpal": "21"}, {"name": "פיבקו ישראל", "nik": "945517878", "michpal": "137"}, {"name": "פידו סולשנז ישראל בע\"מ", "nik": "936145135", "michpal": "95"}, {"name": "פסח איילברג", "nik": "941844557", "michpal": "118"}, {"name": "פרופיס שירותי חשבונאות בע\"מ", "nik": "941830879", "michpal": "80"}, {"name": "קלאמה רגע של רוגע", "nik": "923911671", "michpal": "43"}, {"name": "קפה ברותם", "nik": "902251834", "michpal": "163"}, {"name": "קשר אישי", "nik": "943374330", "michpal": "26"}, {"name": "ראובן דלויה", "nik": "941819062", "michpal": "98"}, {"name": "ראשית ש.פ. בע\"מ", "nik": "941754640", "michpal": "94"}, {"name": "רוזנן יובל", "nik": "936015163", "michpal": "14"}, {"name": "שבילי כפיר לגיל הרך", "nik": "943460733", "michpal": "251"}, {"name": "שופן תרגומים בע\"מ", "nik": "932086051", "michpal": "62"}, {"name": "שיבר ישראל", "nik": "941812695", "michpal": "207"}, {"name": "שמש יוסי", "nik": "939187910", "michpal": "92"}];
+// Index by both exact name and "core name" (stripped of quotes/brackets/spaces) for fuzzy matching
+const MICHPAL_BY_NIKUYIM = {};
+const MICHPAL_BY_CORE_NAME = {};
+MICHPAL_DATA.forEach(row => {
+  if(row.nik && !MICHPAL_BY_NIKUYIM[row.nik]) MICHPAL_BY_NIKUYIM[row.nik] = row.michpal;
+  const cn = coreCompanyName(row.name);
+  if(cn && !MICHPAL_BY_CORE_NAME[cn]) MICHPAL_BY_CORE_NAME[cn] = row;
+});
+const MICHPAL_CORE_KEYS = Object.keys(MICHPAL_BY_CORE_NAME).sort((a,b)=>b.length-a.length);
+// Safer fuzzy lookup: exact core-name match first; otherwise the longest
+// prefix overlap (min 8 chars on both sides) to avoid mismatching short/generic names
+function findMichpalMatch(clientName){
+  const cn = coreCompanyName(clientName);
+  if(MICHPAL_BY_CORE_NAME[cn]) return MICHPAL_BY_CORE_NAME[cn];
+  let best=null, bestLen=0;
+  for(const k of MICHPAL_CORE_KEYS){
+    if(k.length<8 || cn.length<8) continue;
+    if(cn.startsWith(k) && k.length>bestLen){ best=MICHPAL_BY_CORE_NAME[k]; bestLen=k.length; }
+    else if(k.startsWith(cn) && cn.length>bestLen){ best=MICHPAL_BY_CORE_NAME[k]; bestLen=cn.length; }
+  }
+  return best;
+}
+
 // Merge Excel data into localStorage on first load
 function initClientData(){
   Object.entries(EXCEL_CLIENT_DATA).forEach(([name, data]) => {
@@ -2942,6 +3186,31 @@ function initClientData(){
     if(!existing.send && data.send) existing.send = data.send;
     if(!existing.typeOverride && data.type) existing.typeOverride = data.type;
     LSS(key, existing);
+  });
+  // Fill in Michpal client number (מספר לקוח במיכפל) for every known client:
+  // 1) match by תיק ניכויים already saved on the client, 2) fall back to fuzzy name match
+  const allNames = new Set();
+  Object.keys(DATA||{}).forEach(month=>{
+    ['v','s'].forEach(k=>{
+      ((DATA[month]&&DATA[month][k])||[]).forEach(r=>allNames.add(r[0]));
+    });
+  });
+  allNames.forEach(name=>{
+    const key = 'bl_cdata_' + name.replace(/[^א-ת\w]/g,'_').slice(0,50);
+    const existing = LSG(key) || {};
+    if(existing.michpalNo) return;
+    const nik = (existing.nikuyimFile||'').trim();
+    if(nik && MICHPAL_BY_NIKUYIM[nik]){
+      existing.michpalNo = MICHPAL_BY_NIKUYIM[nik];
+      LSS(key, existing);
+      return;
+    }
+    const match = findMichpalMatch(name);
+    if(match){
+      existing.michpalNo = match.michpal;
+      if(!existing.nikuyimFile && match.nik) existing.nikuyimFile = match.nik;
+      LSS(key, existing);
+    }
   });
 }
 
@@ -3498,6 +3767,10 @@ function openClientPanel(clientName, type, acct){
       <input class="cp-input" id="cpNikFile" value="${cd.nikuyimFile||''}" placeholder="מספר תיק ניכויים...">
     </div>
     <div class="cp-field">
+      <div class="cp-label">🏦 מספר לקוח במיכפל</div>
+      <input class="cp-input" id="cpMichpalNo" value="${cd.michpalNo||''}" placeholder="מספר החברה במיכפל...">
+    </div>
+    <div class="cp-field">
       <div class="cp-label">📞 טלפון</div>
       <input class="cp-input" id="cpPhone" value="${cd.phone||''}" placeholder="050-0000000" type="tel">
     </div>
@@ -3543,7 +3816,7 @@ function openClientPanel(clientName, type, acct){
       </div>
       <div style="font-size:11px;color:#94A3B8;margin:8px 0 4px">אילו דוחות נשלחים:</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px">
-        ${['תלושים','דוח ניכויים','102','ריכוז קופות גמל','דוח תמחיר','ריכוז נטו לעובדים','פירוט מס"ב נטו לעובדים','מס"ב קופות גמל','פירוט מס"ב עובדים','דוח תמחיר מחלקות','ריכוז משכורות וניכויים','דוח תמחיר גמל','דוח חופשה ומחלה','דוח קופות גמל'].map(r => {
+        ${['תלושי שכר','דוח פקודת שכר (PDF)','דוח 102 חודשי','דוח 102 מצטבר','תמחיר חודשי כל העובדים','תמחיר חודשי סיכומים','תמחיר מצטבר כל העובדים','תמחיר מצטבר סיכומים','דוח עלות שכר -> נטו','ריכוז חופשות ומחלות','ריכוז משכורות וניכויים','ריכוז קופות גמל מרוכז','ריכוז קופות גמל מפורט','פירוט רכיבי שכר','קובץ מס"ב','פירוט מס"ב','דוח סרגל דוחות','קובץ פקודת שכר (BCBL)','דוח נכוחות וניצולים (Excel)'].map(r => {
           const checked = (cd.salReportsSent||[]).includes(r);
           return `<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="cp-sal-report" value="${r}" ${checked?'checked':''} ${cd.isEmployer==='כן'?'':'disabled'}>${r}</label>`;
         }).join('')}
@@ -3733,6 +4006,7 @@ function saveClientPanel(clientName){
     salReportsSent: Array.from(document.querySelectorAll('.cp-sal-report:checked')).map(el=>el.value),
     isEmployer: document.getElementById('cpIsEmployer')?.value||'',
     nikuyimFile: document.getElementById('cpNikFile')?.value.trim()||'',
+    michpalNo: document.getElementById('cpMichpalNo')?.value.trim()||'',
     nikuyimFreq: document.getElementById('cpNikuyimReportFreq')?.value||'',
     sendSal: document.getElementById('cpSendSal')?.value||'',
     note: document.getElementById('cpNote').value.trim(),
