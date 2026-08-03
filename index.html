@@ -1018,12 +1018,19 @@ async function triggerPythonPayrollJob(clientName){
     toast('⚠️ אין חיבור לסופאבייס כרגע — הפייתון לא יקבל את הפקודה');
     return;
   }
+  // סט הדוחות שהוגדר ללקוח בכרטיס שלו + שני הדוחות הקבועים (BCBL, נוכחות
+  // וניצולים) שתמיד מופקים לכולם, ללא כפילויות
+  const reports = [...new Set([
+    ...(cd.salReportsSent||[]),
+    'קובץ פקודת שכר (BCBL)',
+    'דוח נכוחות וניצולים (Excel)'
+  ])];
   try {
     await db.from('tracker_checks').upsert({
       month: curMonth, tab: 'sal', client_name: clientName,
-      michpalNo: cd.michpalNo, is_processed: false, updated_at: new Date().toISOString()
+      michpalNo: cd.michpalNo, is_processed: false, reports, updated_at: new Date().toISOString()
     }, {onConflict: 'month,tab,client_name'});
-    toast('🐍 נשלחה פקודה לפייתון: הפקת סט שכר מלא ל-'+clientName.slice(0,20)+' · חודש '+curMonth);
+    toast('🐍 נשלחה פקודה לפייתון: הפקת '+reports.length+' דוחות ל-'+clientName.slice(0,20)+' · חודש '+curMonth);
   } catch(e){
     toast('⚠️ שגיאה בשליחת הפקודה לפייתון');
   }
