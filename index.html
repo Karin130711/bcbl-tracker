@@ -833,12 +833,17 @@ async function pushNote(clientName, note) {
 }
 
 async function pushClientData(clientName, data) {
-  if(!db || !syncEnabled) return;
+  if(!db || !syncEnabled) return {ok:true, skipped:true};
   try {
-    await db.from('tracker_clients').upsert({
+    const {error} = await db.from('tracker_clients').upsert({
       client_name: clientName, ...data, updated_at: new Date().toISOString()
     }, {onConflict: 'client_name'});
-  } catch(e) {}
+    if(error){ console.error('pushClientData failed:', error); return {ok:false, error}; }
+    return {ok:true};
+  } catch(e) {
+    console.error('pushClientData exception:', e);
+    return {ok:false, error:e};
+  }
 }
 
 async function pushClosing(year, clientName, itemId, checked, isNa, note) {
@@ -4107,7 +4112,7 @@ function updateEmployerFieldsState(){
   if(reportsMethod) reportsMethod.disabled = !isEmp;
   document.querySelectorAll('.cp-sal-report').forEach(el => el.disabled = !isEmp);
 }
-function saveClientPanel(clientName){
+async function saveClientPanel(clientName){
   if(!clientName) clientName = _cpClient;
   if(!clientName) return;
   const nameEditVal = document.getElementById('cpNameEdit')?.value.trim()||'';
@@ -4147,12 +4152,16 @@ function saveClientPanel(clientName){
     accountant: document.getElementById('cpAcctSel')?.value||'',
   };
   saveClientData(clientName,cd);
-  pushClientData(clientName,cd);
+  const pushResult = await pushClientData(clientName,cd);
   _identityMapCache = null;
   closeClientPanel();
   renderClientsTable();
   renderTable();
-  toast('✓ פרטי לקוח נשמרו');
+  if(pushResult && pushResult.ok===false){
+    toast('⚠️ נשמר במחשב הזה בלבד — הסנכרון לענן נכשל ('+(pushResult.error?.message||'שגיאה לא ידועה')+')');
+  } else {
+    toast('✓ פרטי לקוח נשמרו');
+  }
 }
 // שם התצוגה של לקוח - עדיפות לשם החלופי שהוגדר בכרטיס, אחרת השם המקורי
 // (המפתח הפנימי לכל הנתונים ההיסטוריים תמיד נשאר השם המקורי, כדי לא לשבור קישור לנתוני עבר)
