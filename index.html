@@ -244,6 +244,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
     </div>
   </div>
   <div class="hdr-actions">
+    <span id="myNameBadge" onclick="pickMyName()" style="cursor:pointer;font-size:12px;font-weight:700;background:#F1F5F9;color:#475569;padding:6px 12px;border-radius:8px;display:flex;align-items:center;gap:5px" title="לחצי לשינוי הזהות שלך"></span>
     <button class="btn primary" onclick="openModal('addClientModal')">＋ הוספת לקוח</button>
     <button class="btn" onclick="openModal('reassignModal')">🔄 העברת תיק</button>
     <button class="btn" onclick="openModal('acctModal')">👤 ניהול מנח"שיות</button>
@@ -358,6 +359,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <button class="btn primary" onclick="addAcct()">+ הוספה</button>
     <hr class="divider">
     <label style="font-size:12px;color:var(--gray);font-weight:600">מנהלות קיימות</label>
+    <div style="font-size:11px;color:var(--gray);margin-bottom:8px">כתובת המייל האישית של כל מנהלת חשבונות משמשת ליצירת טיוטות שכר בשמה (ראו "שליחת סט שכר למעסיק")</div>
     <div class="acct-list" id="acctList"></div>
   </div>
 </div>
@@ -746,6 +748,11 @@ async function pullAllFromSupabase() {
       ass[r.month][r.client_name] = r.accountant;
     });
     if(Object.keys(ass).length) LSS('bl_assign', ass);
+    // Accountant emails (for automatic Gmail draft creation)
+    const {data: acctEmails} = await db.from('tracker_accountants').select('*');
+    const emailMap = {};
+    (acctEmails||[]).forEach(r => { if(r.name && r.email) emailMap[r.name] = r.email; });
+    if(Object.keys(emailMap).length) LSS('bl_acct_emails', emailMap);
     // Reporting deadlines
     const {data: deadlines} = await db.from('tracker_deadlines').select('*');
     (deadlines||[]).forEach(r => {
@@ -784,6 +791,18 @@ function subscribeRealtime() {
     .on('postgres_changes', {event:'*', schema:'public', table:'tracker_notes'}, payload => {
       const r = payload.new;
       if(r?.note) localStorage.setItem('bl_note_' + (r.client_name||'').replace(/[^א-ת\w]/g,'_').slice(0,50), r.note);
+    })
+    .on('postgres_changes', {event:'*', schema:'public', table:'tracker_send_requests'}, payload => {
+      const r = payload.new;
+      if(!r || r.month !== curMonth) return;
+      if(r.status === 'draft'){
+        setPayrollSetSend(r.client_name, {status:'draft', ts: r.updated_at||new Date().toISOString()});
+        toast('📝 טיוטא מוכנה ב-Gmail — '+r.client_name.slice(0,20)+' (נא לפתוח, לבדוק ולשלוח)');
+      } else if(r.status === 'error'){
+        setPayrollSetSend(r.client_name, {status:'error', ts: r.updated_at||new Date().toISOString(), reason: r.error_reason||''});
+        toast('⚠️ יצירת הטיוטא נכשלה — '+r.client_name.slice(0,20)+(r.error_reason?(' ('+r.error_reason+')'):''));
+      }
+      renderTable();
     })
     .subscribe(status => {
       if(status === 'SUBSCRIBED') setSyncStatus('online');
@@ -894,6 +913,29 @@ function getAccts(){
   return [...all].sort();
 }
 function saveAccts(list){ LSS('bl_accts', list); }
+
+// ── Who am I (identity used when sending emails on behalf of this bookkeeper) ──
+function getMyName(){ return localStorage.getItem('bl_my_name') || ''; }
+function setMyName(name){
+  localStorage.setItem('bl_my_name', name);
+  renderMyNameBadge();
+}
+function pickMyName(){
+  const accts = getAccts();
+  const listText = accts.length ? ('\n\nרשימת שמות קיימת בדשבורד: '+accts.join(', ')) : '';
+  const name = prompt('מי את? (השם ישמש לזהות אותך כשמייל נשלח בשמך למעסיק)'+listText, getMyName());
+  if(name && name.trim()) setMyName(name.trim());
+  return getMyName();
+}
+function ensureMyName(){
+  return getMyName() || pickMyName();
+}
+function renderMyNameBadge(){
+  const el = document.getElementById('myNameBadge');
+  if(!el) return;
+  const name = getMyName();
+  el.innerHTML = name ? ('👤 '+name) : '👤 מי את? (לחצי כאן)';
+}
 function addAcct(){
   const v = document.getElementById('newAcctInput').value.trim();
   if(!v) return;
@@ -1944,14 +1986,36 @@ function updateAcctFilters(){
 }
 
 // ── Acct modal ──
+// ── Accountant emails (used by the Python worker to create drafts as each bookkeeper) ──
+function getAcctEmails(){ return LSG('bl_acct_emails') || {}; }
+function saveAcctEmailsLocal(map){ LSS('bl_acct_emails', map); }
+async function saveAcctEmail(name, email){
+  const map = getAcctEmails();
+  map[name] = email;
+  saveAcctEmailsLocal(map);
+  if(db && syncEnabled){
+    try { await db.from('tracker_accountants').upsert({name, email, updated_at: new Date().toISOString()}, {onConflict:'name'}); }
+    catch(e){ /* יישאר בלוקאלי, ינסה שוב בפעם הבאה שהמודל נפתח */ }
+  }
+  toast('✓ מייל נשמר עבור '+name);
+}
+
 function renderAcctModal(){
   const list = document.getElementById('acctList');
+  const emails = getAcctEmails();
   list.innerHTML = getAccts().map(a => {
     const col = getAcctColor(a);
     const safe = a.replace(/'/g,"\'");
-    return `<div class="acct-chip" style="background:${col}22;color:${col};border-color:${col}44;justify-content:space-between;min-width:140px">
-      <span>${a}</span>
-      <button onclick="removeAcct('${safe}')" style="background:#FEE2E2;border:none;color:#DC2626;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;font-weight:700;margin-right:4px">הסר</button>
+    const inputId = 'acctEmail_'+a.replace(/[^א-ת\w]/g,'_');
+    return `<div class="acct-chip" style="background:${col}22;color:${col};border-color:${col}44;flex-direction:column;align-items:stretch;min-width:220px;gap:6px;padding:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700">${a}</span>
+        <button onclick="removeAcct('${safe}')" style="background:#FEE2E2;border:none;color:#DC2626;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;font-weight:700">הסר</button>
+      </div>
+      <div style="display:flex;gap:4px">
+        <input type="email" id="${inputId}" value="${emails[a]||''}" placeholder="כתובת מייל אישית..." style="flex:1;font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid ${col}44;color:#1E293B;background:#fff">
+        <button onclick="saveAcctEmail('${safe}', document.getElementById('${inputId}').value.trim())" style="background:${col}33;border:none;color:${col};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-weight:700">שמירה</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -2429,13 +2493,14 @@ function renderPayrollSetSendCell(clientName){
   const inProgress = ps.status==='generating' || ps.status==='sending';
 
   const colorByStatus = {
-    sent:'#16A34A', error:'#DC2626', ready:'#2563EB', generating:'#D97706', sending:'#D97706'
+    sent:'#16A34A', draft:'#7C3AED', error:'#DC2626', ready:'#2563EB', generating:'#D97706', sending:'#D97706'
   };
   const svgColor = colorByStatus[ps.status] || '#D97706';
   const cbStyle = isChecked ? 'background:'+svgColor+'22;border-color:'+svgColor : '';
   const title = ps.status==='ready' ? 'הדוחות מוכנים — לחצי לשליחה למעסיק'
     : ps.status==='generating' ? 'מפיקה דוחות...'
-    : ps.status==='sending' ? 'שולח...'
+    : ps.status==='sending' ? 'יוצרת טיוטא...'
+    : ps.status==='draft' ? 'טיוטא מוכנה ב-Gmail — לחצי לביטול הסימון'
     : ps.status==='sent' ? 'נשלח — לחצי לביטול'
     : ps.status==='error' ? 'שגיאה — לחצי לניסיון נוסף'
     : 'סמני לשליחת סט שכר למעסיק';
@@ -2447,6 +2512,8 @@ function renderPayrollSetSendCell(clientName){
   let result = '';
   if(ps.status === 'sent'){
     result = '<span class="payset-reset" data-name="'+enc+'" style="font-size:9px;font-weight:700;background:#F0FDF4;color:#16A34A;padding:1px 5px;border-radius:6px;cursor:pointer;margin-top:2px;display:block" title="נשלח ב-'+(ps.ts?new Date(ps.ts).toLocaleDateString('he-IL'):'')+'">✓ נשלח</span>';
+  } else if(ps.status === 'draft'){
+    result = '<span class="payset-reset" data-name="'+enc+'" style="font-size:9px;font-weight:700;background:#F5F3FF;color:#7C3AED;padding:1px 5px;border-radius:6px;cursor:pointer;margin-top:2px;display:block" title="טיוטא נוצרה ב-'+(ps.ts?new Date(ps.ts).toLocaleDateString('he-IL'):'')+' — נא לפתוח Gmail, לבדוק ולשלוח">📝 טיוטא ב-Gmail</span>';
   } else if(ps.status === 'ready'){
     result = '<span class="payset-send" data-name="'+enc+'" style="font-size:9px;font-weight:700;background:#EFF6FF;color:#2563EB;padding:1px 5px;border-radius:6px;cursor:pointer;margin-top:2px;display:block" title="הדוחות מוכנים — לחצי לשליחה">📦 מוכן לשליחה</span>';
   } else if(ps.status === 'error'){
@@ -2454,7 +2521,7 @@ function renderPayrollSetSendCell(clientName){
   } else if(ps.status === 'generating'){
     result = '<span style="font-size:8px;color:#D97706;margin-top:2px;display:block">⏳ מפיקה דוחות...</span>';
   } else if(ps.status === 'sending'){
-    result = '<span style="font-size:8px;color:#D97706;margin-top:2px;display:block">⏳ שולח...</span>';
+    result = '<span style="font-size:8px;color:#D97706;margin-top:2px;display:block">⏳ יוצרת טיוטא...</span>';
   }
 
   return '<td style="text-align:center"><div style="display:flex;flex-direction:column;align-items:center;gap:1px">'+cb+result+'</div></td>';
@@ -2549,31 +2616,62 @@ function runPayrollSetSend(clientName){
   const cdReal = vatRow ? getClientData(vatRow[0]) : cd;
   const phone = (cdReal.phone||'').replace(/[^0-9]/g,'');
   const email = cdReal.email||'';
-  const contact = cdReal.contactMethod||'';
+  const contact = cdReal.sendSal||cd.sendSal||'';
+  const michpalNo = cd.michpalNo || cdReal.michpalNo || '';
+
+  // עדיפות לוואטסאפ רק אם זה ממש מה שמוגדר בכרטיס הלקוח ("שכר - שליחת
+  // דוחות" = ווטסאפ) - זה עדיין נפתח ידנית (אין API חינמי לצירוף קבצים
+  // אוטומטי לוואטסאפ), בדיוק כמו עד היום. בכל מקרה אחר - מייל אוטומטי.
+  if(phone && contact==='ווטסאפ'){
+    const [mm, yy] = (curMonth||'').split('/');
+    const monthYear = (mm && yy) ? (mm+'.20'+yy) : curMonth;
+    const companyId = String(michpalNo).padStart(3, '0');
+    const folderPath = michpalNo ? ('C:\\Public\\Auto\\'+monthYear+'\\'+companyId+'\\') : '';
+    const folderNote = folderPath ? ('\n\nהקבצים נמצאים בתיקייה המשותפת: '+folderPath+' - נא לצרף אותם ידנית לפני השליחה.') : '';
+    const msg = encodeURIComponent('שלום, מצורף סט השכר המלא לחודש '+curMonth+'.'+folderNote+'\nבן חיים בר לב רואי חשבון');
+    setPayrollSetSend(clientName, {status:'sent', ts: new Date().toISOString()});
+    renderTable();
+    window.open('https://wa.me/972'+phone.replace(/^0/,'')+'?text='+msg, '_blank');
+    toast('✓ נפתחה שיחת וואטסאפ — נא לצרף את הקבצים ידנית');
+    return;
+  }
+
+  if(!email){
+    setPayrollSetSend(clientName, {status:'error', ts: new Date().toISOString(), reason: 'אין פרטי קשר'});
+    renderTable();
+    toast('⚠️ לא נמצאו פרטי קשר ללקוח');
+    return;
+  }
+  if(!michpalNo){
+    toast('⚠️ אין מספר לקוח במיכפל ל-'+clientName.slice(0,20)+' — לא ניתן לאתר את הקבצים לשליחה');
+    return;
+  }
+
+  // מזהה מי שולחת (כדי שהמייל בפועל ייצא מהתיבה האישית שלה, לא ממחשב מרכזי)
+  const senderName = ensureMyName();
+  if(!senderName){
+    toast('⚠️ צריך לבחור מי את לפני שליחה');
+    return;
+  }
+  if(!db || !syncEnabled){
+    toast('⚠️ אין חיבור לסופאבייס כרגע — השליחה לא תופעל');
+    return;
+  }
 
   setPayrollSetSend(clientName, {status:'sending', ts: new Date().toISOString()});
   renderTable();
-  toast('📦 שולחת סט שכר למעסיק...');
+  toast('📝 נשלחה בקשה ל-Python: יצירת טיוטת מייל בשם '+senderName+' ל-'+clientName.slice(0,20)+'...');
 
-  setTimeout(()=>{
-    const msg = encodeURIComponent('שלום, מצורף סט השכר המלא לחודש '+curMonth+'.\nבן חיים בר לב רואי חשבון');
-    let sent = false;
-    if(phone && (contact==='whatsapp'||!contact||contact==='both')){
-      window.open('https://wa.me/972'+phone.replace(/^0/,'')+'?text='+msg, '_blank');
-      sent = true;
-    } else if(email && (contact==='email'||(!phone&&!contact)||contact==='both')){
-      window.location.href='mailto:'+email+'?subject=סט+שכר+'+curMonth+'&body='+msg;
-      sent = true;
+  db.from('tracker_send_requests').insert({
+    client_name: clientName, month: curMonth, michpalNo: michpalNo,
+    sender_name: senderName, status: 'pending'
+  }).then(({error}) => {
+    if(error){
+      setPayrollSetSend(clientName, {status:'error', ts: new Date().toISOString(), reason: 'שגיאת סופאבייס'});
+      renderTable();
+      toast('⚠️ שגיאה בשליחת הבקשה');
     }
-    if(sent){
-      setPayrollSetSend(clientName, {status:'sent', ts: new Date().toISOString()});
-      toast('✓ סט שכר נשלח למעסיק — '+clientName.slice(0,20));
-    } else {
-      setPayrollSetSend(clientName, {status:'error', ts: new Date().toISOString(), reason: 'אין פרטי קשר'});
-      toast('⚠️ לא נמצאו פרטי קשר ללקוח');
-    }
-    renderTable();
-  }, 1000);
+  });
 }
 
 // Event delegation for payroll set send
@@ -2589,7 +2687,7 @@ document.addEventListener('click', function(e){
     const ps = getPayrollSetSend(name);
     if(ps.status === 'generating' || ps.status === 'sending'){
       toast('⏳ פעולה כבר בתהליך, נא להמתין');
-    } else if(ps.status === 'sent'){
+    } else if(ps.status === 'sent' || ps.status === 'draft'){
       setPayrollSetSend(name, {status:'none'});
       renderTable();
       toast('שליחה בוטלה');
@@ -2710,7 +2808,7 @@ function runSlipsSend(clientName){
   const cdReal = vatRow ? getClientData(vatRow[0]) : cd;
   const phone = (cdReal.phone||'').replace(/[^0-9]/g,'');
   const email = cdReal.email||'';
-  const contact = cdReal.contactMethod||'';
+  const contact = cdReal.sendSal||cd.sendSal||'';
   
   // Mark as pending
   setSlipsSend(clientName, {status:'pending', ts: new Date().toISOString()});
@@ -2720,10 +2818,10 @@ function runSlipsSend(clientName){
   setTimeout(()=>{
     const msg = encodeURIComponent('שלום, מצורפים תלושי השכר שלך לחודש '+curMonth+'.\nבן חיים בר לב רואי חשבון');
     let sent = false;
-    if(phone && (contact==='whatsapp'||!contact||contact==='both')){
+    if(phone && contact==='ווטסאפ'){
       window.open('https://wa.me/972'+phone.replace(/^0/,'')+'?text='+msg, '_blank');
       sent = true;
-    } else if(email && (contact==='email'||(!phone&&!contact)||contact==='both')){
+    } else if(email){
       window.location.href='mailto:'+email+'?subject=תלושי+שכר+'+curMonth+'&body='+msg;
       sent = true;
     }
@@ -4210,6 +4308,8 @@ if(!LSG('bl_years')) LSS('bl_years',['2024','2025']);
 initClientData();
 // Connect to Supabase
 initSupabase();
+// Render "who am I" badge
+renderMyNameBadge();
 // Scroll active month into view on load
 setTimeout(() => {
   const active = document.querySelector('.month-tab.active');
