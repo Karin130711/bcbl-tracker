@@ -361,6 +361,9 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <label style="font-size:12px;color:var(--gray);font-weight:600">מנהלות קיימות</label>
     <div style="font-size:11px;color:var(--gray);margin-bottom:8px">כתובת המייל האישית של כל מנהלת חשבונות משמשת ליצירת טיוטות שכר בשמה (ראו "שליחת סט שכר למעסיק")</div>
     <div class="acct-list" id="acctList"></div>
+    <hr class="divider">
+    <div style="font-size:11px;color:var(--gray);margin-bottom:8px">אם שיוכי לקוחות למנהלות חשבונות לא הופיעו בעבר במחשבים אחרים - תיקון חד-פעמי: דוחפת מחדש לענן את כל השיוכים ששמורים במחשב הזה.</div>
+    <button class="btn" onclick="resyncAllAssignments()">🔄 סנכרון מחדש של כל השיוכים</button>
   </div>
 </div>
 
@@ -986,6 +989,37 @@ function removeAcct(name){
 // ── Assignments override ──
 function getAssignments(){
   return LSG('bl_assign') || {};
+}
+
+// חד-פעמי: דוחפת מחדש לסופאבייס את כל השיוכים ששמורים במחשב הזה, כדי
+// למלא את מה שהבאג הקודם (month לא מוגדר) הפיל בשקט עד עכשיו.
+async function resyncAllAssignments(){
+  if(!db || !syncEnabled){
+    toast('⚠️ אין חיבור לסופאבייס כרגע');
+    return;
+  }
+  const ass = getAssignments();
+  const rows = [];
+  Object.keys(ass).forEach(month => {
+    Object.keys(ass[month]||{}).forEach(clientName => {
+      rows.push({month, clientName, acct: ass[month][clientName]});
+    });
+  });
+  if(!rows.length){
+    toast('אין שיוכים שמורים במחשב הזה לסנכרן');
+    return;
+  }
+  toast('🔄 מסנכרנת '+rows.length+' שיוכים לענן...');
+  let ok = 0, failed = 0;
+  for(const r of rows){
+    const res = await pushAssignment(r.month, r.clientName, r.acct);
+    if(res && res.ok===false) failed++; else ok++;
+  }
+  if(failed){
+    toast('✓ סונכרנו '+ok+' שיוכים, ⚠️ '+failed+' נכשלו');
+  } else {
+    toast('✓ כל '+ok+' השיוכים סונכרנו בהצלחה לענן');
+  }
 }
 async function setAssignment(clientName, acct, allMonths){
   const ass = getAssignments();
