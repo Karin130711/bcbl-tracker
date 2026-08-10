@@ -789,6 +789,16 @@ function subscribeRealtime() {
       renderTable();
       renderClientsTable();
     })
+    .on('postgres_changes', {event:'*', schema:'public', table:'tracker_assignments'}, payload => {
+      const r = payload.new;
+      if(!r || !r.month || !r.client_name) return;
+      const ass = getAssignments();
+      if(!ass[r.month]) ass[r.month] = {};
+      ass[r.month][r.client_name] = r.accountant;
+      LSS('bl_assign', ass);
+      renderTable();
+      renderClientsTable();
+    })
     .on('postgres_changes', {event:'*', schema:'public', table:'tracker_checks'}, payload => {
       const r = payload.new;
       if(!r) return;
