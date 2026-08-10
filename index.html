@@ -777,6 +777,15 @@ async function pullAllFromSupabase() {
 function subscribeRealtime() {
   if(!db) return;
   db.channel('tracker')
+    .on('postgres_changes', {event:'*', schema:'public', table:'tracker_clients'}, payload => {
+      const r = payload.new;
+      if(!r || !r.client_name) return;
+      const {client_name, updated_at, id, ...cd} = r;
+      LSS('bl_cdata_' + client_name.replace(/[^א-ת\w]/g,'_').slice(0,50), cd);
+      _identityMapCache = null;
+      renderTable();
+      renderClientsTable();
+    })
     .on('postgres_changes', {event:'*', schema:'public', table:'tracker_checks'}, payload => {
       const r = payload.new;
       if(!r) return;
