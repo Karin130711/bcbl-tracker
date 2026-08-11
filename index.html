@@ -261,6 +261,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <div class="main-tab" id="mainTabClose" onclick="switchMainTab('close')">📊 סגירות שנתיות</div>
     <div class="main-tab" id="mainTabClients" onclick="switchMainTab('clients')">👥 לקוחות</div>
     <div class="main-tab" id="mainTabProc" onclick="switchMainTab('proc')">⚙️ עיבוד נתונים</div>
+    <div class="main-tab" id="mainTabFees" onclick="switchMainTab('fees')">💰 מעקב שכ"ט</div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;padding:0 16px 0 0">
     <span id="syncIndicator" style="display:flex;align-items:center;font-size:11px;color:var(--text3)">
@@ -539,6 +540,82 @@ tbody td:first-child{padding-right:10px;text-align:right}
       <thead id="clientsThead"></thead>
       <tbody id="clientsTbody"></tbody>
     </table>
+  </div>
+</div>
+
+<!-- ══ מעקב שכ"ט ══ -->
+<div id="mainFees" style="display:none">
+  <div class="yr-tabs" id="feeYrTabs"></div>
+  <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:#fff;border-bottom:1px solid #E2E8F0;flex-wrap:wrap">
+    <input class="srch" id="feeSrch" type="text" placeholder="🔍 חיפוש לקוח..." oninput="renderFeeTable()" style="width:200px">
+    <label style="font-size:12px;color:var(--gray);font-weight:600;display:flex;align-items:center;gap:6px">
+      הצג לי חוב לתאריך:
+      <input type="date" id="feeAsOfDate" class="sel" style="padding:6px 8px">
+    </label>
+    <button class="btn primary" onclick="applyFeeAsOfDate()">הצג</button>
+    <button class="btn" onclick="resetFeeAsOfDate()">היום</button>
+    <button class="btn" onclick="exportFeeTableToExcel()">📥 ייצוא לאקסל</button>
+    <button class="btn primary" onclick="openImportDataModal()">📤 טעינת נתונים</button>
+    <div style="margin-right:auto;font-size:12px;color:var(--gray)">סה"כ חוב מוצג: <span id="feeGrandTotal" style="font-weight:800;color:var(--accent);font-size:15px">—</span></div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead id="feeThead"></thead>
+      <tbody id="feeTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Special Charges Modal -->
+<div id="feeFilterPopover" style="display:none;position:fixed;z-index:1000;background:#fff;border:1px solid #E2E8F0;box-shadow:0 6px 16px rgba(0,0,0,.18);border-radius:8px;padding:8px;min-width:150px;text-align:right;font-weight:400"></div>
+
+<div class="overlay" id="specialChargesModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSpecialCharges()">✕</button>
+    <h2>💵 חיובים מיוחדים</h2>
+    <div id="specialChargesClientName" style="font-size:13px;color:var(--gray);margin-bottom:10px;font-weight:700"></div>
+    <div id="specialChargesList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+    <button class="btn primary" onclick="addSpecialCharge()">+ הוספת חיוב</button>
+  </div>
+</div>
+
+<!-- Import Data Modal -->
+<div class="overlay" id="importDataModal">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="closeModal('importDataModal')">✕</button>
+    <h2>📤 טעינת נתונים - תשלומים שהתקבלו</h2>
+    <div style="font-size:12px;color:var(--gray);margin-bottom:12px">
+      טוענים קובץ PCN874 (.TXT) שהופק ממס"ב, עם ריכוז ההכנסות של החודש. המערכת תזהה כל לקוח לפי ח.פ., תסמן וי לחודש המתאים (תמיד חודש לפני תאריך החשבונית), ותבקש ממך לסווג רק תשלומים חריגים.
+    </div>
+    <input type="file" id="importFileInput" accept=".txt,.TXT" onchange="handleImportFileSelected(event)" style="margin-bottom:12px">
+    <div id="importSummary" style="font-size:13px;line-height:1.9"></div>
+    <div id="importActions" style="margin-top:14px;display:flex;gap:8px"></div>
+  </div>
+</div>
+
+<!-- Anomaly Classification Modal -->
+<div class="overlay" id="anomalyModal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="skipAnomalyClassification()">✕</button>
+    <h2>⚠️ זוהה תשלום חריג</h2>
+    <div style="font-size:13px;color:var(--gray);margin-bottom:4px">אנא סווגי אותו:</div>
+    <div id="anomalyClientLine" style="font-size:15px;font-weight:800;margin-bottom:12px"></div>
+    <div style="background:#F8FAFC;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px">
+      <div>תאריך: <span id="anomalyDate" style="font-weight:700"></span></div>
+      <div>סכום כולל שהתקבל: <span id="anomalyTotalAmount" style="font-weight:700;color:var(--accent)"></span></div>
+    </div>
+    <div class="form-row"><label>סכום שוטף (חודש <span id="anomalyMonthLabel"></span>)</label>
+      <input type="number" id="anomalySplitCurrent" class="cp-input" value="0" oninput="updateAnomalyRemainder()"></div>
+    <div class="form-row"><label>סכום לדוח שנתי</label>
+      <input type="number" id="anomalySplitAnnual" class="cp-input" value="0" oninput="updateAnomalyRemainder()"></div>
+    <div class="form-row"><label>סכום לחיובים מיוחדים</label>
+      <input type="number" id="anomalySplitSpecial" class="cp-input" value="0" oninput="updateAnomalyRemainder()"></div>
+    <div id="anomalyRemainder" style="font-size:12px;margin:6px 0 14px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="skipAnomalyClassification()">דלג</button>
+      <button class="btn primary" onclick="applyAnomalyClassification()">עדכון</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ עיבוד נתונים ══ -->
@@ -756,6 +833,16 @@ async function pullAllFromSupabase() {
     const emailMap = {};
     (acctEmails||[]).forEach(r => { if(r.name && r.email) emailMap[r.name] = r.email; });
     if(Object.keys(emailMap).length) LSS('bl_acct_emails', emailMap);
+    // Fee tracking (מעקב שכ"ט)
+    const {data: feeRows} = await db.from('tracker_feetrack').select('*');
+    const feeYearsSeen = new Set(getFeeYears());
+    (feeRows||[]).forEach(r => {
+      if(r.year && r.client_name && r.data){
+        LSS(feeKey(r.year, r.client_name), r.data);
+        feeYearsSeen.add(r.year);
+      }
+    });
+    if(feeYearsSeen.size) LSS('bl_fee_years', [...feeYearsSeen].sort());
     // Reporting deadlines
     const {data: deadlines} = await db.from('tracker_deadlines').select('*');
     (deadlines||[]).forEach(r => {
@@ -798,6 +885,12 @@ function subscribeRealtime() {
       LSS('bl_assign', ass);
       renderTable();
       renderClientsTable();
+    })
+    .on('postgres_changes', {event:'*', schema:'public', table:'tracker_feetrack'}, payload => {
+      const r = payload.new;
+      if(!r || !r.year || !r.client_name) return;
+      LSS(feeKey(r.year, r.client_name), r.data||{});
+      if(curMainTab==='fees') renderFeeTable();
     })
     .on('postgres_changes', {event:'*', schema:'public', table:'tracker_checks'}, payload => {
       const r = payload.new;
@@ -1050,6 +1143,18 @@ async function setAssignment(clientName, acct, allMonths){
     if(pushResult && pushResult.ok===false){
       toast('⚠️ השיוך נשמר מקומית בלבד — הסנכרון לענן נכשל');
     }
+  }
+  // מעדכנת גם את השדה הקבוע בכרטיס הלקוח (מקור האמת שטאב "לקוחות" קורא
+  // ממנו), כדי שטאב הלקוחות/מע"מ/שכר יציגו תמיד את אותה מנהלת חשבונות.
+  // חשוב: שומרת תחת השם הקנוני (לא בהכרח clientName כפי שנכתב בטאב
+  // הנוכחי), כדי לעדכן בדיוק את אותה רשומה שכל שאר הטאבים קוראים ממנה.
+  const canonName = getCanonicalName(clientName);
+  const cd = getClientData(canonName);
+  cd.accountant = acct;
+  saveClientData(canonName, cd);
+  const cardPushResult = await pushClientData(canonName, cd);
+  if(cardPushResult && cardPushResult.ok===false){
+    toast('⚠️ כרטיס הלקוח לא הסתנכרן לענן');
   }
 }
 function getClientAcct(month, row){
@@ -1923,7 +2028,7 @@ let curMainTab = 'monthly';
 
 function switchMainTab(m){
   curMainTab = m;
-  ['mainTabMonthly','mainTabClose','mainTabClients','mainTabProc'].forEach(id=>{
+  ['mainTabMonthly','mainTabClose','mainTabClients','mainTabProc','mainTabFees'].forEach(id=>{
     document.getElementById(id).className='main-tab'+(id==='mainTab'+m.charAt(0).toUpperCase()+m.slice(1)?' active':'');
   });
   document.getElementById('monthlySubNav').style.display = m==='monthly' ? '' : 'none';
@@ -1931,9 +2036,11 @@ function switchMainTab(m){
   document.getElementById('mainClose').style.display = m==='close' ? '' : 'none';
   document.getElementById('mainClients').style.display = m==='clients' ? '' : 'none';
   document.getElementById('mainProc').style.display = m==='proc' ? '' : 'none';
+  document.getElementById('mainFees').style.display = m==='fees' ? '' : 'none';
   if(m==='monthly'){ updateStats(); renderTable(); }
   if(m==='close'){ renderYearTabs(); renderCoList(); }
   if(m==='clients'){ renderClientsTable(); populateClientsAcctFilter(); }
+  if(m==='fees'){ renderFeeYearTabs(); renderFeeTable(); }
 }
 
 function switchTab(t){
@@ -4393,6 +4500,737 @@ document.getElementById('mainClients').style.display='none';
 document.getElementById('mainProc').style.display='none';
 // Init closing years
 if(!LSG('bl_years')) LSS('bl_years',['2024','2025']);
+// ══════════════════════════
+// מעקב שכ"ט (FEE TRACKING)
+// ══════════════════════════
+let curFeeYear = null;
+let curFeeAsOfDate = null; // null = לא הופעל סינון לפי תאריך, מציגה סה"כ מלא לשנה
+let feeColFilters = {invoiceForTransaction:[], sendTaxInvoice:[], monthlyIncludesAnnual:[], invoiceSource:[]};
+let _openFeeFilterCol = null;
+const FEE_FILTER_OPTIONS = {
+  invoiceForTransaction: ['כן','לא'],
+  sendTaxInvoice: ['כן','לא'],
+  monthlyIncludesAnnual: ['כן','לא'],
+  get invoiceSource(){ return INVOICE_SOURCE_OPTIONS; }
+};
+function parseFlexDate(str){
+  if(!str) return '';
+  const s = str.trim();
+  let d, mo, y;
+  // עם מפרידים: יום/חודש/שנה (שנה מלאה, 4 ספרות) - למשל 05/08/2026
+  let m = s.match(/^(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{4})$/);
+  if(m){
+    d = m[1].padStart(2,'0'); mo = m[2].padStart(2,'0'); y = m[3];
+  }
+  // בלי מפרידים, 8 ספרות: יום-חודש-שנה מלאה - למשל 05082026
+  else if(/^\d{8}$/.test(s)){
+    d = s.slice(0,2); mo = s.slice(2,4); y = s.slice(4,8);
+  }
+  // בלי מפרידים, 6 ספרות: יום-חודש-שנה קצרה - למשל 050826 → 2026
+  else if(/^\d{6}$/.test(s)){
+    d = s.slice(0,2); mo = s.slice(2,4);
+    const yy = Number(s.slice(4,6));
+    y = String((yy<=50?2000:1900) + yy);
+  }
+  else return null;
+
+  if(Number(mo)<1 || Number(mo)>12 || Number(d)<1 || Number(d)>31) return null;
+  return `${y}-${mo}-${d}`;
+}
+function isoToDisplay(iso){
+  if(!iso) return '';
+  const parts = iso.split('-');
+  if(parts.length!==3) return '';
+  const [y,m,d] = parts;
+  return `${d}/${m}/${y}`;
+}
+// שדה תאריך "היברידי": טקסט חופשי (יום/חודש/שנה) + כפתור לוח שנה קטן לצידו,
+// כדי שאפשר גם להקליד וגם ללחוץ ולבחור - בלי הבאג של קלט מקלדתי לתוך
+// שדה date מפולח שגורם לשנה "להיקטע" (למשל 0002) בעריכה+רינדור מחדש
+function dateFieldHtml(isoVal, textOnchange, pickerOnchange, width){
+  return `<span style="display:inline-flex;align-items:center;gap:2px">
+    <input type="text" value="${isoToDisplay(isoVal)}" placeholder="יום/חודש/שנה"
+      style="width:${width||70}px;font-size:10px;padding:1px 2px;border:1px solid #E2E8F0;border-radius:4px"
+      onchange="${textOnchange}">
+    <input type="date" value="${isoVal||''}" style="width:16px;padding:0;border:none;background:none;opacity:.55;cursor:pointer"
+      onchange="${pickerOnchange}" title="פתיחת לוח שנה">
+  </span>`;
+}
+
+function renderFeeFilterPopoverContent(){
+  const pop = document.getElementById('feeFilterPopover');
+  const field = _openFeeFilterCol;
+  if(!field){ pop.style.display='none'; return; }
+  const options = FEE_FILTER_OPTIONS[field];
+  const selected = feeColFilters[field];
+  pop.innerHTML = `
+    ${options.map(o=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 2px;cursor:pointer;white-space:nowrap">
+      <input type="checkbox" ${selected.includes(o)?'checked':''} onclick="toggleFeeFilterValue('${field}','${escFeeAttr(o)}' ,event)">
+      ${o}
+    </label>`).join('')}
+    <div style="border-top:1px solid #E2E8F0;margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <button onclick="clearFeeFilter('${field}',event)" style="font-size:11px;background:none;border:none;color:var(--accent);cursor:pointer;padding:0">נקה סינון</button>
+      <button onclick="closeFeeFilterPopover(event)" class="btn primary" style="font-size:11px;padding:4px 12px">סנן</button>
+    </div>`;
+}
+function closeFeeFilterPopover(ev){
+  if(ev) ev.stopPropagation();
+  document.getElementById('feeFilterPopover').style.display = 'none';
+  _openFeeFilterCol = null;
+}
+function toggleFeeFilterPopover(field, ev){
+  if(ev) ev.stopPropagation();
+  const pop = document.getElementById('feeFilterPopover');
+  if(_openFeeFilterCol === field){
+    pop.style.display = 'none';
+    _openFeeFilterCol = null;
+    return;
+  }
+  _openFeeFilterCol = field;
+  renderFeeFilterPopoverContent();
+  const trigger = (ev && (ev.currentTarget||ev.target)) || null;
+  if(trigger){
+    const rect = trigger.getBoundingClientRect();
+    pop.style.top = (rect.bottom + 4) + 'px';
+    pop.style.left = Math.max(4, rect.left) + 'px';
+  }
+  pop.style.display = 'block';
+}
+function toggleFeeFilterValue(field, val, ev){
+  if(ev) ev.stopPropagation();
+  const arr = feeColFilters[field];
+  const i = arr.indexOf(val);
+  if(i>=0) arr.splice(i,1); else arr.push(val);
+  renderFeeFilterPopoverContent();
+  renderFeeTable();
+}
+function clearFeeFilter(field, ev){
+  if(ev) ev.stopPropagation();
+  feeColFilters[field] = [];
+  renderFeeFilterPopoverContent();
+  renderFeeTable();
+}
+document.addEventListener('click', function(e){
+  const pop = document.getElementById('feeFilterPopover');
+  if(pop && pop.style.display!=='none' && !e.target.closest('#feeFilterPopover') && !e.target.closest('.fee-filter-trigger')){
+    pop.style.display = 'none';
+    _openFeeFilterCol = null;
+  }
+});
+
+function getFeeYears(){
+  return LSG('bl_fee_years') || [String(new Date().getFullYear())];
+}
+function renderFeeYearTabs(){
+  const years = getFeeYears();
+  if(!curFeeYear || !years.includes(curFeeYear)) curFeeYear = years[years.length-1];
+  document.getElementById('feeYrTabs').innerHTML =
+    years.map(y=>`<div class="yr-tab${y===curFeeYear?' active':''}" onclick="selectFeeYear('${y}')">${y}</div>`).join('') +
+    `<div class="yr-tab add-yr" onclick="addFeeYear()">＋ שנה</div>`;
+}
+function selectFeeYear(y){
+  curFeeYear = y;
+  renderFeeYearTabs();
+  renderFeeTable();
+}
+function addFeeYear(){
+  const y = prompt('הכניסי שנת מס (למשל 2027):');
+  if(!y || !/^\d{4}$/.test(y.trim())) return;
+  const years = getFeeYears();
+  const yr = y.trim();
+  if(!years.includes(yr)){ years.push(yr); years.sort(); LSS('bl_fee_years', years); }
+  curFeeYear = yr;
+  renderFeeYearTabs();
+  renderFeeTable();
+}
+
+function feeKey(year, clientName){
+  return 'bl_fee_' + year + '_' + (clientName||'').replace(/[^א-ת\w]/g,'_').slice(0,50);
+}
+function getFeeData(year, clientName){
+  const d = LSG(feeKey(year, clientName));
+  return d || {
+    openingBalance: 0, months: {}, annual: {amount:0, date:'', paid:false},
+    special: [], invoiceForTransaction: '', sendTaxInvoice: '',
+    monthlyIncludesAnnual: '', invoiceSource: ''
+  };
+}
+async function saveFeeData(year, clientName, data){
+  LSS(feeKey(year, clientName), data);
+  if(!db || !syncEnabled) return {ok:true, skipped:true};
+  try {
+    const {error} = await db.from('tracker_feetrack').upsert({
+      year, client_name: clientName, data, updated_at: new Date().toISOString()
+    }, {onConflict:'year,client_name'});
+    if(error){ console.error('feetrack push failed:', error); return {ok:false, error}; }
+    return {ok:true};
+  } catch(e){ console.error('feetrack push exception:', e); return {ok:false, error:e}; }
+}
+
+// הסכום החודשי "האפקטיבי" - הערך המפורש האחרון שהוזן בחודש m או לפניו
+// (גרירה אוטומטית קדימה כל עוד לא הוזן ערך חדש)
+function effectiveMonthAmount(feeData, m){
+  for(let i=m; i>=1; i--){
+    const rec = feeData.months[i];
+    if(rec && rec.amount!==null && rec.amount!==undefined && rec.amount!=='') return Number(rec.amount)||0;
+  }
+  return 0;
+}
+function isMonthPaid(feeData, m){
+  return !!(feeData.months[m] && feeData.months[m].paid);
+}
+
+// חוב נכון לתאריך נתון: יתרת פתיחה + כל החיובים (חודשיים/דוח שנתי/מיוחדים)
+// שתאריכם חל עד ועם התאריך המבוקש, בניכוי כל מה שכבר סומן כשולם
+function computeDebt(feeData, year, asOfDateStr){
+  // תמיד מחושב לפי תאריך - ברירת המחדל היא היום הנוכחי אם לא נבחר אחר.
+  // חודש נספר בחוב רק אחרי שהוא כבר הסתיים לגמרי (למשל ב-11/8, חודש
+  // אוגוסט עצמו עדיין לא נחשב "חוב" - רק עד יולי, כלומר: חודש התאריך פחות 1).
+  const asOf = asOfDateStr ? new Date(asOfDateStr) : new Date();
+  const yearNum = parseInt(year);
+  let debt = feeData.openingBalancePaid ? 0 : (Number(feeData.openingBalance)||0);
+
+  let maxMonth;
+  if(asOf.getFullYear() < yearNum) maxMonth = 0;
+  else if(asOf.getFullYear() > yearNum) maxMonth = 12;
+  else maxMonth = asOf.getMonth(); // getMonth() הוא 0-11, שזה בדיוק "החודש הקודם" במונחים של 1-12
+
+  for(let m=1; m<=maxMonth; m++){
+    if(!isMonthPaid(feeData, m)) debt += effectiveMonthAmount(feeData, m);
+  }
+
+  if(feeData.monthlyIncludesAnnual !== 'כן' && feeData.annual && feeData.annual.amount){
+    const adate = feeData.annual.date ? new Date(feeData.annual.date) : null;
+    if(!feeData.annual.paid && adate && adate <= asOf){
+      debt += Number(feeData.annual.amount)||0;
+    }
+  }
+
+  (feeData.special||[]).forEach(ch=>{
+    const cdate = ch.date ? new Date(ch.date) : null;
+    if(!ch.paid && cdate && cdate <= asOf){
+      debt += Number(ch.amount)||0;
+    }
+  });
+
+  return debt;
+}
+
+function yesNoSelect(encName, field, val, extraStyle){
+  return `<select class="sel" style="${extraStyle||'font-size:11px;padding:3px 4px'}" onchange="setFeeMetaField('${encName}','${field}',this.value)">
+    <option value=""${val?'':' selected'}>—</option>
+    <option value="כן"${val==='כן'?' selected':''}>כן</option>
+    <option value="לא"${val==='לא'?' selected':''}>לא</option>
+  </select>`;
+}
+const INVOICE_SOURCE_OPTIONS = ['חשבשבת- חברה','חשבשבת - עוסק - מס"ב','חשבשבת- עוסק - העברה','פינבוט - סליקה מהירה','פינבוט - חיוב מחזורי','פינבוט - העברה בנקאית'];
+function escFeeAttr(s){
+  return String(s).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+function invoiceSourceSelect(encName, val, extraStyle){
+  return `<select class="sel" style="${extraStyle||'font-size:11px;padding:3px 4px'}" onchange="setFeeMetaField('${encName}','invoiceSource',this.value)">
+    <option value=""${val?'':' selected'}>—</option>
+    ${INVOICE_SOURCE_OPTIONS.map(o=>`<option value="${escFeeAttr(o)}"${val===o?' selected':''}>${o}</option>`).join('')}
+  </select>`;
+}
+
+function applyFeeAsOfDate(){
+  const val = document.getElementById('feeAsOfDate').value;
+  curFeeAsOfDate = val || null;
+  renderFeeTable();
+}
+function resetFeeAsOfDate(){
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('feeAsOfDate').value = today;
+  curFeeAsOfDate = today;
+  renderFeeTable();
+}
+
+function exportFeeTableToExcel(){
+  const year = curFeeYear || (getFeeYears()[0]);
+  const table = document.querySelector('#mainFees table');
+  if(!table) return;
+  const rows = [];
+  table.querySelectorAll('tr').forEach(tr=>{
+    const cells = [];
+    tr.querySelectorAll('th,td').forEach(cell=>{
+      // עבור תאים עם קלט/בחירה - לוקחת את הערך בפועל, לא את ה-HTML
+      let val = '';
+      const sel = cell.querySelector('select');
+      const numInp = cell.querySelector('input[type="number"]');
+      const dateInp = cell.querySelector('input[type="date"]');
+      if(sel) val = sel.options[sel.selectedIndex]?.textContent || '';
+      else if(numInp) val = numInp.value;
+      else if(dateInp) val = dateInp.value;
+      else val = cell.textContent.trim();
+      cells.push('"'+String(val).replace(/"/g,'""')+'"');
+    });
+    rows.push(cells.join(','));
+  });
+  const csv = '\uFEFF' + rows.join('\r\n'); // BOM כדי שעברית תוצג נכון באקסל
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'מעקב_שכט_'+year+'.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('📥 הקובץ יורד...');
+}
+
+function renderFeeTable(){
+  const year = curFeeYear || (getFeeYears()[0]);
+  if(!year) return;
+  const srch = (document.getElementById('feeSrch')?.value||'').toLowerCase();
+  const asOfInput = document.getElementById('feeAsOfDate');
+  if(asOfInput && !asOfInput.value) asOfInput.value = new Date().toISOString().slice(0,10);
+
+  const fInvTx = feeColFilters.invoiceForTransaction;
+  const fTaxInv = feeColFilters.sendTaxInvoice;
+  const fIncAnn = feeColFilters.monthlyIncludesAnnual;
+  const fSrc = feeColFilters.invoiceSource;
+
+  const seen = new Set();
+  const rows = [];
+  getClientUniverse().forEach(r=>{
+    const canon = getCanonicalName(r[0]);
+    if(seen.has(canon)) return;
+    seen.add(canon);
+    const cd = getClientDataCanonical(canon);
+    if(cd.isActive==='לא') return;
+    if(srch && !getDisplayName(canon).toLowerCase().includes(srch)) return;
+    const fd = getFeeData(year, canon);
+    if(fInvTx.length && !fInvTx.includes(fd.invoiceForTransaction)) return;
+    if(fTaxInv.length && !fTaxInv.includes(fd.sendTaxInvoice)) return;
+    if(fIncAnn.length && !fIncAnn.includes(fd.monthlyIncludesAnnual)) return;
+    if(fSrc.length && !fSrc.includes(fd.invoiceSource)) return;
+    rows.push(canon);
+  });
+  rows.sort((a,b)=>getDisplayName(a).localeCompare(getDisplayName(b),'he'));
+
+  const monthHeaders = [];
+  for(let m=1;m<=12;m++) monthHeaders.push(`<th style="min-width:70px">${m}.${year}</th>`);
+  const metaHdrStyle = 'min-width:52px;font-size:10px;line-height:1.2;padding:4px 2px;position:relative';
+
+  function filterHeader(field, label, extraStyle){
+    const active = feeColFilters[field].length > 0;
+    return `<th style="${extraStyle||metaHdrStyle}">
+      <span class="fee-filter-trigger" style="cursor:pointer;user-select:none" onclick="toggleFeeFilterPopover('${field}',event)">${label} ${active?'🔽':'▾'}</span>
+    </th>`;
+  }
+
+  document.getElementById('feeThead').innerHTML = `<tr>
+    <th style="min-width:160px;position:sticky;right:0;background:#fff;z-index:2">שם לקוח</th>
+    <th style="min-width:70px">י.פ.</th>
+    ${monthHeaders.join('')}
+    <th style="min-width:110px">דוח שנתי</th>
+    <th style="min-width:90px">חיובים<br>מיוחדים</th>
+    <th style="min-width:100px">סה"כ חוב</th>
+    ${filterHeader('invoiceForTransaction','חשבונית<br>עסקה')}
+    ${filterHeader('sendTaxInvoice','לשלוח<br>חשבונית מס')}
+    ${filterHeader('monthlyIncludesAnnual','כולל<br>דוח שנתי')}
+    ${filterHeader('invoiceSource','מקור<br>חשבונית','min-width:70px;font-size:10px;line-height:1.2;padding:4px 2px')}
+  </tr>`;
+
+  let grandTotal = 0;
+  document.getElementById('feeTbody').innerHTML = rows.map(name=>{
+    const fd = getFeeData(year, name);
+    const debt = computeDebt(fd, year, curFeeAsOfDate);
+    grandTotal += debt;
+    const encName = encodeURIComponent(name);
+    const fd_taxId = getClientDataCanonical(name).taxId || '';
+
+    const monthCells = [];
+    for(let m=1;m<=12;m++){
+      const rec = fd.months[m] || {};
+      const carried = effectiveMonthAmount(fd, m-1);
+      monthCells.push(`<td style="text-align:center;padding:4px">
+        <input type="number" value="${rec.amount!=null?rec.amount:''}" placeholder="${carried||''}"
+          style="width:56px;font-size:11px;padding:2px 4px;border:1px solid #E2E8F0;border-radius:4px;text-align:center"
+          onchange="setFeeMonthAmount('${encName}',${m},this.value)">
+        <br>
+        <input type="checkbox" ${rec.paid?'checked':''} title="שולם" style="margin-top:2px"
+          onchange="setFeeMonthPaid('${encName}',${m},this.checked)">
+      </td>`);
+    }
+
+    const annualIncluded = fd.monthlyIncludesAnnual==='כן';
+    const annualCell = annualIncluded
+      ? `<td style="text-align:center;font-size:11px;color:var(--gray)">בשוטף</td>`
+      : `<td style="text-align:center;padding:4px">
+          <input type="number" value="${fd.annual&&fd.annual.amount||''}" placeholder="סכום" style="width:64px;font-size:11px;padding:2px 4px;border:1px solid #E2E8F0;border-radius:4px;text-align:center;margin-bottom:2px"
+            onchange="setFeeAnnualField('${encName}','amount',this.value)"><br>
+          ${dateFieldHtml(fd.annual&&fd.annual.date, `setFeeAnnualDateText('${encName}',this.value)`, `setFeeAnnualField('${encName}','date',this.value)`)}<br>
+          <input type="checkbox" ${fd.annual&&fd.annual.paid?'checked':''} title="שולם"
+            onchange="setFeeAnnualPaid('${encName}',this.checked)">
+        </td>`;
+
+    const specialCount = (fd.special||[]).length;
+    const specialSum = (fd.special||[]).reduce((s,c)=>s+(Number(c.amount)||0),0);
+    const specialCell = `<td style="text-align:center;padding:4px">
+        <button class="btn" style="font-size:10px;padding:4px 8px" onclick="openSpecialCharges('${encName}')">
+          ${specialCount ? specialCount+' · ₪'+specialSum.toLocaleString() : '+ הוספה'}
+        </button>
+      </td>`;
+
+    const metaCellStyle = 'text-align:center;padding:2px';
+    const metaSelStyle = 'font-size:10px;padding:2px 3px;width:100%';
+    return `<tr>
+      <td style="position:sticky;right:0;background:#fff;font-weight:700;z-index:1">${getDisplayName(name)}${fd_taxId?`<div style="font-size:10px;font-weight:400;color:var(--gray)">ח.פ. ${fd_taxId}</div>`:''}</td>
+      <td style="text-align:center;padding:4px">
+        <input type="number" value="${fd.openingBalance||0}" style="width:64px;font-size:11px;padding:2px 4px;border:1px solid #E2E8F0;border-radius:4px;text-align:center"
+          onchange="setFeeOpeningBalance('${encName}',this.value)">
+        <br>
+        <input type="checkbox" ${fd.openingBalancePaid?'checked':''} title="שולם" style="margin-top:2px"
+          onchange="setFeeOpeningBalancePaid('${encName}',this.checked)">
+      </td>
+      ${monthCells.join('')}
+      ${annualCell}
+      ${specialCell}
+      <td style="text-align:center;font-weight:800;color:${debt>0?'#DC2626':'#16A34A'}">₪${debt.toLocaleString()}</td>
+      <td style="${metaCellStyle}">${yesNoSelect(encName,'invoiceForTransaction',fd.invoiceForTransaction,metaSelStyle)}</td>
+      <td style="${metaCellStyle}">${yesNoSelect(encName,'sendTaxInvoice',fd.sendTaxInvoice,metaSelStyle)}</td>
+      <td style="${metaCellStyle}">${yesNoSelect(encName,'monthlyIncludesAnnual',fd.monthlyIncludesAnnual,metaSelStyle)}</td>
+      <td style="${metaCellStyle}">${invoiceSourceSelect(encName,fd.invoiceSource,metaSelStyle)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('feeGrandTotal').textContent = '₪'+grandTotal.toLocaleString();
+}
+
+async function setFeeOpeningBalance(encName, val){
+  const name = decodeURIComponent(encName);
+  const fd = getFeeData(curFeeYear, name);
+  fd.openingBalance = Number(val)||0;
+  const res = await saveFeeData(curFeeYear, name, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderFeeTable();
+}
+async function setFeeOpeningBalancePaid(encName, checked){
+  const name = decodeURIComponent(encName);
+  const fd = getFeeData(curFeeYear, name);
+  fd.openingBalancePaid = checked;
+  const res = await saveFeeData(curFeeYear, name, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderFeeTable();
+}
+async function setFeeMonthAmount(encName, m, val){
+  const name = decodeURIComponent(encName);
+  const fd = getFeeData(curFeeYear, name);
+  if(!fd.months[m]) fd.months[m] = {};
+  fd.months[m].amount = val==='' ? null : Number(val);
+  const res = await saveFeeData(curFeeYear, name, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderFeeTable();
+}
+async function setFeeMonthPaid(encName, m, checked){
+  const name = decodeURIComponent(encName);
+  const fd = getFeeData(curFeeYear, name);
+  if(!fd.months[m]) fd.months[m] = {};
+  fd.months[m].paid = checked;
+  const res = await saveFeeData(curFeeYear, name, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderFeeTable();
+}
+async function setFeeAnnualField(encName, field, val){
+  const name = decodeURIComponent(encName);
+  const fd = getFeeData(curFeeYear, name);
+  if(!fd.annual) fd.annual = {amount:0,date:'',paid:false};
+  fd.annual[field] = field==='amount' ? (Number(val)||0) : val;
+  const res = await saveFeeData(curFeeYear, name, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderFeeTable();
+}
+async function setFeeAnnualDateText(encName, text){
+  const iso = parseFlexDate(text);
+  if(text && iso===null){ toast('⚠️ פורמט תאריך לא תקין - יום/חודש/שנה, למשל 01/09/2026'); renderFeeTable(); return; }
+  await setFeeAnnualField(encName, 'date', iso||'');
+}
+async function setFeeAnnualPaid(encName, checked){
+  const name = decodeURIComponent(encName);
+  const fd = getFeeData(curFeeYear, name);
+  if(!fd.annual) fd.annual = {amount:0,date:'',paid:false};
+  fd.annual.paid = checked;
+  const res = await saveFeeData(curFeeYear, name, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderFeeTable();
+}
+async function setFeeMetaField(encName, field, val){
+  const name = decodeURIComponent(encName);
+  const fd = getFeeData(curFeeYear, name);
+  fd[field] = val;
+  const res = await saveFeeData(curFeeYear, name, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderFeeTable();
+}
+
+// ── Special charges modal ──
+let _specialChargesClient = null;
+function openSpecialCharges(encName){
+  _specialChargesClient = decodeURIComponent(encName);
+  document.getElementById('specialChargesClientName').textContent = getDisplayName(_specialChargesClient);
+  renderSpecialChargesList();
+  openModal('specialChargesModal');
+}
+function closeSpecialCharges(){
+  closeModal('specialChargesModal');
+  renderFeeTable();
+}
+function renderSpecialChargesList(){
+  const fd = getFeeData(curFeeYear, _specialChargesClient);
+  const list = document.getElementById('specialChargesList');
+  const charges = fd.special || [];
+  if(!charges.length){
+    list.innerHTML = '<div style="color:var(--gray);font-size:13px;text-align:center;padding:20px 0">אין חיובים מיוחדים עדיין</div>';
+    return;
+  }
+  list.innerHTML = charges.map((c,i)=>`
+    <div style="display:flex;gap:6px;align-items:center;padding:8px;background:#F8FAFC;border-radius:8px">
+      <input type="text" value="${c.description||''}" placeholder="תיאור..." style="flex:1;font-size:12px;padding:4px 6px;border:1px solid #E2E8F0;border-radius:4px" onchange="updateSpecialCharge(${i},'description',this.value)">
+      <input type="number" value="${c.amount||''}" placeholder="סכום" style="width:70px;font-size:12px;padding:4px 6px;border:1px solid #E2E8F0;border-radius:4px" onchange="updateSpecialCharge(${i},'amount',this.value)">
+      ${dateFieldHtml(c.date, `updateSpecialChargeDateText(${i},this.value)`, `updateSpecialCharge(${i},'date',this.value)`, 76)}
+      <label style="font-size:11px;display:flex;align-items:center;gap:3px"><input type="checkbox" ${c.paid?'checked':''} onchange="updateSpecialCharge(${i},'paid',this.checked)">שולם</label>
+      <button onclick="removeSpecialCharge(${i})" style="background:#FEE2E2;border:none;color:#DC2626;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:700">הסר</button>
+    </div>
+  `).join('');
+}
+async function addSpecialCharge(){
+  const fd = getFeeData(curFeeYear, _specialChargesClient);
+  if(!fd.special) fd.special = [];
+  fd.special.push({description:'', amount:0, date:new Date().toISOString().slice(0,10), paid:false});
+  const res = await saveFeeData(curFeeYear, _specialChargesClient, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderSpecialChargesList();
+}
+async function updateSpecialCharge(idx, field, val){
+  const fd = getFeeData(curFeeYear, _specialChargesClient);
+  if(!fd.special || !fd.special[idx]) return;
+  fd.special[idx][field] = field==='amount' ? (Number(val)||0) : val;
+  const res = await saveFeeData(curFeeYear, _specialChargesClient, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  if(field==='date') renderSpecialChargesList();
+}
+async function updateSpecialChargeDateText(idx, text){
+  const iso = parseFlexDate(text);
+  if(text && iso===null){ toast('⚠️ פורמט תאריך לא תקין - יום/חודש/שנה, למשל 01/09/2026'); renderSpecialChargesList(); return; }
+  await updateSpecialCharge(idx, 'date', iso||'');
+}
+async function removeSpecialCharge(idx){
+  const fd = getFeeData(curFeeYear, _specialChargesClient);
+  if(!fd.special) return;
+  fd.special.splice(idx,1);
+  const res = await saveFeeData(curFeeYear, _specialChargesClient, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+  renderSpecialChargesList();
+}
+
+// ══════════════════════════
+// טעינת נתונים - קובץ PCN874 (מס"ב)
+// ══════════════════════════
+let _importAutoMatched = [];
+let _importAnomalyQueue = [];
+let _importUnmatchedTaxId = 0;
+let _importUnmatchedClient = [];
+let _anomalyIndex = 0;
+
+function openImportDataModal(){
+  document.getElementById('importFileInput').value = '';
+  document.getElementById('importSummary').innerHTML = '';
+  document.getElementById('importActions').innerHTML = '';
+  openModal('importDataModal');
+}
+
+// מפענחת רשומות S (הכנסה מזוהה) מקובץ PCN874, לפי המבנה שאומת מול
+// הקובץ עצמו: taxId(9) + תאריך YYYYMMDD(8) + אסמכתא(13) + מע"מ(9) +
+// סימן(1) + סכום לפני מע"מ(10) + שדה עודף(9)
+function parsePCN874(text){
+  const lines = text.split(/\r?\n/);
+  const entries = [];
+  lines.forEach(line => {
+    if(!line.startsWith('S') || line.length < 51) return;
+    const taxId = line.slice(1,10);
+    const dateStr = line.slice(10,18);
+    const vat = parseInt(line.slice(31,40), 10) || 0;
+    const base = parseInt(line.slice(41,51), 10) || 0;
+    const total = base + vat;
+    const y = dateStr.slice(0,4), m = dateStr.slice(4,6), d = dateStr.slice(6,8);
+    if(!y || !m || !d) return;
+    entries.push({
+      taxId, invoiceDateIso: `${y}-${m}-${d}`,
+      invoiceMonth: parseInt(m,10), invoiceYear: parseInt(y,10), total
+    });
+  });
+  return entries;
+}
+
+function buildTaxIdToClientMap(){
+  const map = {};
+  const seen = new Set();
+  getClientUniverse().forEach(r=>{
+    const canon = getCanonicalName(r[0]);
+    if(seen.has(canon)) return;
+    seen.add(canon);
+    const cd = getClientDataCanonical(canon);
+    const tid = (cd.taxId||'').trim().replace(/^0+/,'');
+    if(tid) map[tid] = canon;
+  });
+  return map;
+}
+
+// כלל הדיליי: חודש השכ"ט שאליו משוייך התשלום הוא תמיד חודש החשבונית
+// פחות 1 (למשל חשבונית 8.2026 -> שכ"ט 7.2026)
+function targetMonthYear(invoiceMonth, invoiceYear){
+  let m = invoiceMonth - 1, y = invoiceYear;
+  if(m < 1){ m = 12; y -= 1; }
+  return {month: m, year: String(y)};
+}
+
+function handleImportFileSelected(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){ processImportFile(e.target.result); };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function processImportFile(text){
+  const entries = parsePCN874(text);
+  const taxMap = buildTaxIdToClientMap();
+
+  _importAutoMatched = [];
+  _importAnomalyQueue = [];
+  _importUnmatchedTaxId = 0;
+  _importUnmatchedClient = [];
+
+  entries.forEach(e=>{
+    const ntid = e.taxId.replace(/^0+/,'');
+    if(!ntid){ _importUnmatchedTaxId++; return; }
+    const clientName = taxMap[ntid];
+    if(!clientName){ _importUnmatchedClient.push(e); return; }
+
+    const {month, year} = targetMonthYear(e.invoiceMonth, e.invoiceYear);
+    const fd = getFeeData(year, clientName);
+    const expected = effectiveMonthAmount(fd, month);
+    const item = {clientName, year, month, total: e.total, invoiceDateIso: e.invoiceDateIso};
+
+    // תואם בדיוק לסכום החודשי הצפוי (בגרירה) -> נכנס אוטומטית.
+    // כל דבר אחר (סכום שונה, או אין עדיין סכום צפוי) -> נחשב חריג לסיווג ידני
+    if(expected > 0 && Math.abs(expected - e.total) < 1){
+      _importAutoMatched.push(item);
+    } else {
+      _importAnomalyQueue.push(item);
+    }
+  });
+
+  renderImportSummary();
+}
+
+function renderImportSummary(){
+  document.getElementById('importSummary').innerHTML = `
+    <div>✓ ${_importAutoMatched.length} תשלומים תואמים לחלוטין לסכום החודשי הצפוי - ייכנסו אוטומטית</div>
+    <div>⚠️ ${_importAnomalyQueue.length} תשלומים חריגים (סכום שונה מהצפוי) - ידרשו סיווג ידני</div>
+    <div>❓ ${_importUnmatchedClient.length} רשומות עם ח.פ. שלא נמצא בכרטיסי הלקוחות</div>
+    <div style="color:var(--gray)">— ${_importUnmatchedTaxId} רשומות ללא ח.פ. (לא נכללו, כנראה עסקאות קטנות/פרטיות)</div>
+  `;
+  document.getElementById('importActions').innerHTML =
+    `<button class="btn primary" onclick="commitImport()">אישור והמשך</button>`;
+}
+
+async function commitImport(){
+  for(const item of _importAutoMatched){
+    const fd = getFeeData(item.year, item.clientName);
+    if(!fd.months[item.month]) fd.months[item.month] = {};
+    fd.months[item.month].amount = item.total;
+    fd.months[item.month].paid = true;
+    await saveFeeData(item.year, item.clientName, fd);
+  }
+  closeModal('importDataModal');
+  renderFeeTable();
+  toast('✓ '+_importAutoMatched.length+' תשלומים נכנסו אוטומטית');
+  if(_importUnmatchedClient.length){
+    toast('⚠️ '+_importUnmatchedClient.length+' רשומות עם ח.פ. לא מזוהה - יש לבדוק ידנית');
+  }
+
+  _anomalyIndex = 0;
+  if(_importAnomalyQueue.length){
+    openNextAnomaly();
+  }
+}
+
+function openNextAnomaly(){
+  if(_anomalyIndex >= _importAnomalyQueue.length){
+    closeModal('anomalyModal');
+    toast('✓ סיווג כל התשלומים החריגים הושלם');
+    renderFeeTable();
+    return;
+  }
+  const item = _importAnomalyQueue[_anomalyIndex];
+  document.getElementById('anomalyClientLine').textContent = getDisplayName(item.clientName);
+  document.getElementById('anomalyDate').textContent = isoToDisplay(item.invoiceDateIso);
+  document.getElementById('anomalyTotalAmount').textContent = '₪'+item.total.toLocaleString();
+  document.getElementById('anomalyMonthLabel').textContent = item.month+'.'+item.year;
+  document.getElementById('anomalySplitCurrent').value = item.total;
+  document.getElementById('anomalySplitAnnual').value = 0;
+  document.getElementById('anomalySplitSpecial').value = 0;
+  updateAnomalyRemainder();
+  openModal('anomalyModal');
+}
+
+function updateAnomalyRemainder(){
+  const item = _importAnomalyQueue[_anomalyIndex];
+  if(!item) return;
+  const cur = Number(document.getElementById('anomalySplitCurrent').value)||0;
+  const ann = Number(document.getElementById('anomalySplitAnnual').value)||0;
+  const spec = Number(document.getElementById('anomalySplitSpecial').value)||0;
+  const remaining = item.total - (cur+ann+spec);
+  const el = document.getElementById('anomalyRemainder');
+  el.innerHTML = Math.abs(remaining) < 0.01
+    ? '<span style="color:#16A34A">✓ הסכומים תואמים בדיוק</span>'
+    : '<span style="color:#DC2626">⚠️ נותרו ₪'+remaining.toLocaleString()+' לא מסווגים</span>';
+}
+
+async function applyAnomalyClassification(){
+  const item = _importAnomalyQueue[_anomalyIndex];
+  const cur = Number(document.getElementById('anomalySplitCurrent').value)||0;
+  const ann = Number(document.getElementById('anomalySplitAnnual').value)||0;
+  const spec = Number(document.getElementById('anomalySplitSpecial').value)||0;
+  if(Math.abs((cur+ann+spec) - item.total) > 0.01){
+    toast('⚠️ סכום הסיווג לא תואם לסכום הכולל - נא לתקן');
+    return;
+  }
+
+  const fd = getFeeData(item.year, item.clientName);
+  if(cur > 0){
+    if(!fd.months[item.month]) fd.months[item.month] = {};
+    fd.months[item.month].amount = cur;
+    fd.months[item.month].paid = true;
+  }
+  if(ann > 0){
+    if(!fd.annual) fd.annual = {amount:0,date:'',paid:false};
+    fd.annual.amount = ann;
+    fd.annual.date = item.invoiceDateIso;
+    fd.annual.paid = true;
+  }
+  if(spec > 0){
+    if(!fd.special) fd.special = [];
+    fd.special.push({description:'תשלום מתוך קובץ מס"ב', amount: spec, date: item.invoiceDateIso, paid: true});
+  }
+  const res = await saveFeeData(item.year, item.clientName, fd);
+  if(res && res.ok===false) toast('⚠️ לא הסתנכרן לענן');
+
+  _anomalyIndex++;
+  openNextAnomaly();
+}
+
+function skipAnomalyClassification(){
+  closeModal('anomalyModal');
+  _anomalyIndex++;
+  if(_anomalyIndex < _importAnomalyQueue.length) openNextAnomaly();
+  else renderFeeTable();
+}
+
 // Pre-load client data from Excel
 initClientData();
 // Connect to Supabase
