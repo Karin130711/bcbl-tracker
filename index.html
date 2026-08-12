@@ -244,6 +244,7 @@ tbody td:first-child{padding-right:10px;text-align:right}
     </div>
   </div>
   <div class="hdr-actions">
+    <span id="reviewFlagsBadge" onclick="openReviewFlagsModal()" style="display:none;cursor:pointer;font-size:12px;font-weight:700;background:#FEF2F2;color:#DC2626;padding:6px 12px;border-radius:8px;align-items:center;gap:5px" title="פריטים שדורשים בדיקה ידנית"></span>
     <span id="myNameBadge" onclick="pickMyName()" style="cursor:pointer;font-size:12px;font-weight:700;background:#F1F5F9;color:#475569;padding:6px 12px;border-radius:8px;display:flex;align-items:center;gap:5px" title="לחצי לשינוי הזהות שלך"></span>
     <button class="btn primary" onclick="openModal('addClientModal')">＋ הוספת לקוח</button>
     <button class="btn" onclick="openModal('reassignModal')">🔄 העברת תיק</button>
@@ -566,6 +567,15 @@ tbody td:first-child{padding-right:10px;text-align:right}
   </div>
 </div>
 
+<!-- Review Flags Modal -->
+<div class="overlay" id="reviewFlagsModal">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="closeModal('reviewFlagsModal')">✕</button>
+    <h2>⚠️ פריטים שדורשים בדיקה ידנית</h2>
+    <div id="reviewFlagsList" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
+  </div>
+</div>
+
 <!-- Special Charges Modal -->
 <div id="feeFilterPopover" style="display:none;position:fixed;z-index:1000;background:#fff;border:1px solid #E2E8F0;box-shadow:0 6px 16px rgba(0,0,0,.18);border-radius:8px;padding:8px;min-width:150px;text-align:right;font-weight:400"></div>
 
@@ -778,6 +788,7 @@ function initSupabase() {
       setSyncStatus('online');
       subscribeRealtime();
       renderTable();
+      refreshReviewFlagsBadge();
     });
   } catch(e) {
     console.error('Supabase init failed:', e);
@@ -891,6 +902,9 @@ function subscribeRealtime() {
       if(!r || !r.year || !r.client_name) return;
       LSS(feeKey(r.year, r.client_name), r.data||{});
       if(curMainTab==='fees') renderFeeTable();
+    })
+    .on('postgres_changes', {event:'INSERT', schema:'public', table:'tracker_review_flags'}, payload => {
+      refreshReviewFlagsBadge();
     })
     .on('postgres_changes', {event:'*', schema:'public', table:'tracker_checks'}, payload => {
       const r = payload.new;
@@ -1770,14 +1784,16 @@ function dsKey(clientName, month){
 function emptyEntity(name){
   const dl = LSG('bl_deadlines_'+curMonth) || computeDefaultDeadlines(curMonth);
   return {name: name||'', maam:'', maamDue: dl.maam||'', mikdamot:'', mikdamotDue: dl.mikdamot||'',
-          nikuyim:'', nikuyimDue: dl.nikuyim||'', bituach:'', bituachDue: dl.bituach||''};
+          nikuyim:'', nikuyimDue: dl.nikuyim||'', bituach:'', bituachDue: dl.bituach||'',
+          supplierWithholding:''};
 }
 function readEntitiesFromDom(){
   return Array.from(document.querySelectorAll('.ds-entity-row')).map(r=>{
     const i = r.dataset.idx;
     const v = id => document.getElementById('ds_ent_'+i+'_'+id)?.value || '';
     return {name:v('name'), maam:v('maam'), maamDue:v('maamDue'), mikdamot:v('mikdamot'), mikdamotDue:v('mikdamotDue'),
-            nikuyim:v('nikuyim'), nikuyimDue:v('nikuyimDue'), bituach:v('bituach'), bituachDue:v('bituachDue')};
+            nikuyim:v('nikuyim'), nikuyimDue:v('nikuyimDue'), bituach:v('bituach'), bituachDue:v('bituachDue'),
+            supplierWithholding:v('supplierWithholding')};
   });
 }
 function readFundsFromDom(){
@@ -1801,8 +1817,10 @@ function renderEntities(){
         <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_maamDue" value="${e.maamDue||''}"></div>
         <div class="form-row"><label>מס הכנסה - מקדמות</label><input type="number" id="ds_ent_${i}_mikdamot" value="${e.mikdamot||''}"></div>
         <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_mikdamotDue" value="${e.mikdamotDue||''}"></div>
-        <div class="form-row"><label>מס הכנסה - ניכויים</label><input type="number" id="ds_ent_${i}_nikuyim" value="${e.nikuyim||''}"></div>
+        <div class="form-row"><label>מס הכנסה - ניכויים (משכורות, אוטומטי)</label><input type="number" id="ds_ent_${i}_nikuyim" value="${e.nikuyim||''}" oninput="updateEntityNikuyimTotal(${i})"></div>
         <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_nikuyimDue" value="${e.nikuyimDue||''}"></div>
+        <div class="form-row"><label>ניכוי מס במקור - ספקים (ידני)</label><input type="number" id="ds_ent_${i}_supplierWithholding" value="${e.supplierWithholding||''}" oninput="updateEntityNikuyimTotal(${i})"></div>
+        <div class="form-row" id="ds_ent_${i}_nikuyimTotalRow" style="font-size:11px;color:var(--text2)">סה"כ ניכויים (יוצג ללקוח): ₪${fmtNum((Number(e.nikuyim)||0)+(Number(e.supplierWithholding)||0))}</div>
         <div class="form-row"><label>ביטוח לאומי</label><input type="number" id="ds_ent_${i}_bituach" value="${e.bituach||''}"></div>
         <div class="form-row"><label>מועד תשלום</label><input type="date" id="ds_ent_${i}_bituachDue" value="${e.bituachDue||''}"></div>
       </div>
@@ -1819,6 +1837,12 @@ function renderFunds(){
 }
 function addEntityRow(){ _dsEntities = readEntitiesFromDom(); _dsEntities.push(emptyEntity('')); renderEntities(); }
 function removeEntityRow(i){ _dsEntities = readEntitiesFromDom(); _dsEntities.splice(i,1); renderEntities(); }
+function updateEntityNikuyimTotal(i){
+  const nik = Number(document.getElementById('ds_ent_'+i+'_nikuyim')?.value)||0;
+  const sup = Number(document.getElementById('ds_ent_'+i+'_supplierWithholding')?.value)||0;
+  const el = document.getElementById('ds_ent_'+i+'_nikuyimTotalRow');
+  if(el) el.textContent = 'סה"כ ניכויים (יוצג ללקוח): ₪'+(nik+sup).toLocaleString('he-IL');
+}
 function addFundRow(){ _dsFunds = readFundsFromDom(); _dsFunds.push({name:'',amount:'',due:''}); renderFunds(); }
 function removeFundRow(i){ _dsFunds = readFundsFromDom(); _dsFunds.splice(i,1); renderFunds(); }
 
@@ -1912,7 +1936,7 @@ function buildSummaryHtml(){
         <tr style="background:#F8FAFC"><td style="padding:6px 8px;font-weight:600">רשות</td><td style="padding:6px 8px;font-weight:600">סכום</td><td style="padding:6px 8px;font-weight:600">מועד תשלום</td></tr>
         <tr><td style="padding:6px 8px">מע"מ</td><td style="padding:6px 8px">₪${fmtNum(e.maam)}</td><td style="padding:6px 8px">${fmtDateDs(e.maamDue)}</td></tr>
         <tr><td style="padding:6px 8px">מס הכנסה - מקדמות</td><td style="padding:6px 8px">₪${fmtNum(e.mikdamot)}</td><td style="padding:6px 8px">${fmtDateDs(e.mikdamotDue)}</td></tr>
-        <tr><td style="padding:6px 8px">מס הכנסה - ניכויים</td><td style="padding:6px 8px">₪${fmtNum(e.nikuyim)}</td><td style="padding:6px 8px">${fmtDateDs(e.nikuyimDue)}</td></tr>
+        <tr><td style="padding:6px 8px">מס הכנסה - ניכויים</td><td style="padding:6px 8px">₪${fmtNum((Number(e.nikuyim)||0)+(Number(e.supplierWithholding)||0))}</td><td style="padding:6px 8px">${fmtDateDs(e.nikuyimDue)}</td></tr>
         <tr><td style="padding:6px 8px">ביטוח לאומי</td><td style="padding:6px 8px">₪${fmtNum(e.bituach)}</td><td style="padding:6px 8px">${fmtDateDs(e.bituachDue)}</td></tr>
       </table>
     </div>`;
@@ -1948,7 +1972,7 @@ function buildSummaryText(){
     t += `${e.name || ''}\n`;
     t += `מע"מ: ₪${fmtNum(e.maam)} (עד ${fmtDateDs(e.maamDue)})\n`;
     t += `מס הכנסה - מקדמות: ₪${fmtNum(e.mikdamot)} (עד ${fmtDateDs(e.mikdamotDue)})\n`;
-    t += `מס הכנסה - ניכויים: ₪${fmtNum(e.nikuyim)} (עד ${fmtDateDs(e.nikuyimDue)})\n`;
+    t += `מס הכנסה - ניכויים: ₪${fmtNum((Number(e.nikuyim)||0)+(Number(e.supplierWithholding)||0))} (עד ${fmtDateDs(e.nikuyimDue)})\n`;
     t += `ביטוח לאומי: ₪${fmtNum(e.bituach)} (עד ${fmtDateDs(e.bituachDue)})\n\n`;
   });
   if(funds.length){
@@ -3888,8 +3912,8 @@ function getDsSummaryTotals(clientName, month){
   const entities = saved.entities || [];
   const sum = (field) => entities.reduce((s,e) => s + (parseFloat(e[field]) || 0), 0);
   return {
-    maam: sum('maam'), mikdamot: sum('mikdamot'), nikuyim: sum('nikuyim'), bituach: sum('bituach'),
-    social: parseFloat(saved.socialTotal) || 0,
+    maam: sum('maam'), mikdamot: sum('mikdamot'), nikuyim: sum('nikuyim') + sum('supplierWithholding'), bituach: sum('bituach'),
+    social: parseFloat(saved.socialTotal) || 0, sent: saved.sent === true,
     monthlyTurnover: saved.monthlyTurnover || '', cumulativeTurnover: saved.cumulativeTurnover || '',
     verified: saved.verified || {},
   };
@@ -3905,6 +3929,21 @@ function toggleDsVerified(clientName, month, field, checked){
     db.from('tracker_data_summary').upsert({
       client_name: target, month, verified, updated_at: new Date().toISOString()
     }, {onConflict: 'client_name,month'}).then(()=>{}).catch(e=>console.error('verify save failed:', e));
+  }
+  renderClientsTable();
+}
+// וי נפרד: האם ריכוז הנתונים החודשי כבר נשלח בפועל ללקוח (כדי לא לפספס
+// לקוח ששכחו לשלוח לו) - עצמאי מ"verified" (שזה אימות פנימי של המספרים)
+function toggleDsSent(clientName, month, checked){
+  clientName = decodeURIComponent(clientName);
+  const target = resolveDsTarget(getCanonicalName(clientName));
+  const saved = LSG(dsKey(target, month)) || {};
+  saved.sent = checked;
+  LSS(dsKey(target, month), saved);
+  if(db){
+    db.from('tracker_data_summary').upsert({
+      client_name: target, month, sent: checked, updated_at: new Date().toISOString()
+    }, {onConflict: 'client_name,month'}).then(()=>{}).catch(e=>console.error('sent-flag save failed:', e));
   }
   renderClientsTable();
 }
@@ -3997,7 +4036,11 @@ function renderClientsTable(){
   }
 
   // ── מצב חודש נבחר: סכומים + אישור בעין לפני שליחה ──
+  const sentFilterActive = clientsSentFilter !== '';
   thead.innerHTML = `<tr>
+    <th style="min-width:32px;max-width:32px;position:relative">
+      <span class="fee-filter-trigger" style="cursor:pointer;user-select:none" onclick="toggleClientsSentFilterPopover(event)">נשלח ${sentFilterActive?'🔽':'▾'}</span>
+    </th>
     <th>שם לקוח</th><th>סוג</th><th>מנח"ש</th>
     <th>מע"מ</th><th>מקדמות</th><th>ניכויים</th><th>ביטוח לאומי</th><th>סוציאליות</th>
     <th>מחזור חודשי</th><th>מחזור מצטבר</th><th></th>
@@ -4009,13 +4052,24 @@ function renderClientsTable(){
         ${val ? `<input type="checkbox" class="ds-verify-chk" data-name="${encodeURIComponent(clientName)}" data-field="${field}" ${ds.verified&&ds.verified[field]?'checked':''}>` : ''}
       </div>
     </td>`;
-  tbody.innerHTML=rows.map(row=>{
+  let filteredRows = rows;
+  if(clientsSentFilter){
+    filteredRows = rows.filter(row => {
+      const ds = getDsSummaryTotals(row[0], month);
+      return clientsSentFilter === 'sent' ? ds.sent : !ds.sent;
+    });
+  }
+  tbody.innerHTML=filteredRows.map(row=>{
     const cd=getClientDataCanonical(row[0]);
     const acct=cd.accountant||row[2].trim();
     const acol=getAcctColor(acct)||'#888';
     const type=cd.typeOverride||row[1]||'';
     const ds=getDsSummaryTotals(row[0], month);
     return `<tr style="${cd.isActive==='לא'?'opacity:.55':''}">
+      <td style="text-align:center">
+        <input type="checkbox" ${ds.sent?'checked':''} title="ריכוז הנתונים נשלח ללקוח החודש?"
+          onchange="toggleDsSent('${encodeURIComponent(row[0])}','${month}',this.checked)">
+      </td>
       <td><div class="nm">${getDisplayName(row[0])}${cd.isActive==='לא'?' <span style="font-size:10px;background:#F1F5F9;color:#94A3B8;border:1px solid #E2E8F0;padding:1px 6px;border-radius:6px">⚪ לא פעיל</span>':''}</div></td>
       <td><span style="font-size:11px;color:var(--text3)">${type}</span></td>
       <td><span class="acct-tag" style="background:${acol}22;color:${acol}">${acct||'—'}</span></td>
@@ -4506,6 +4560,40 @@ if(!LSG('bl_years')) LSS('bl_years',['2024','2025']);
 let curFeeYear = null;
 let curFeeAsOfDate = null; // null = לא הופעל סינון לפי תאריך, מציגה סה"כ מלא לשנה
 let feeColFilters = {invoiceForTransaction:[], sendTaxInvoice:[], monthlyIncludesAnnual:[], invoiceSource:[]};
+
+// ── פילטר "נשלח" בטבלת לקוחות (תצוגת חודש) ──
+let clientsSentFilter = ''; // '' = הכל, 'sent' = נשלח, 'unsent' = לא נשלח
+function toggleClientsSentFilterPopover(ev){
+  if(ev) ev.stopPropagation();
+  const pop = document.getElementById('feeFilterPopover');
+  if(pop.dataset.mode === 'clientsSent' && pop.style.display !== 'none'){
+    pop.style.display = 'none';
+    return;
+  }
+  pop.dataset.mode = 'clientsSent';
+  pop.innerHTML = `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 2px;cursor:pointer;white-space:nowrap">
+      <input type="radio" name="clientsSentFilt" ${clientsSentFilter===''?'checked':''} onclick="setClientsSentFilter('')"> הכל
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 2px;cursor:pointer;white-space:nowrap">
+      <input type="radio" name="clientsSentFilt" ${clientsSentFilter==='sent'?'checked':''} onclick="setClientsSentFilter('sent')"> רק נשלח
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 2px;cursor:pointer;white-space:nowrap">
+      <input type="radio" name="clientsSentFilt" ${clientsSentFilter==='unsent'?'checked':''} onclick="setClientsSentFilter('unsent')"> רק לא נשלח
+    </label>`;
+  const trigger = (ev && (ev.currentTarget||ev.target)) || null;
+  if(trigger){
+    const rect = trigger.getBoundingClientRect();
+    pop.style.top = (rect.bottom + 4) + 'px';
+    pop.style.left = Math.max(4, rect.left) + 'px';
+  }
+  pop.style.display = 'block';
+}
+function setClientsSentFilter(val){
+  clientsSentFilter = val;
+  document.getElementById('feeFilterPopover').style.display = 'none';
+  renderClientsTable();
+}
 let _openFeeFilterCol = null;
 const FEE_FILTER_OPTIONS = {
   invoiceForTransaction: ['כן','לא'],
@@ -5229,6 +5317,51 @@ function skipAnomalyClassification(){
   _anomalyIndex++;
   if(_anomalyIndex < _importAnomalyQueue.length) openNextAnomaly();
   else renderFeeTable();
+}
+
+// ── Review flags (פריטים שהפייתון לא בטוח לגביהם - לא לפספס) ──
+let _reviewFlags = [];
+async function refreshReviewFlagsBadge(){
+  if(!db || !syncEnabled) return;
+  try {
+    const {data} = await db.from('tracker_review_flags').select('*').eq('resolved', false).order('created_at', {ascending:false});
+    _reviewFlags = data || [];
+    const badge = document.getElementById('reviewFlagsBadge');
+    if(_reviewFlags.length){
+      badge.style.display = 'flex';
+      badge.textContent = '⚠️ '+_reviewFlags.length+' לבדיקה';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e){ console.error('review flags fetch failed:', e); }
+}
+function openReviewFlagsModal(){
+  renderReviewFlagsList();
+  openModal('reviewFlagsModal');
+}
+function renderReviewFlagsList(){
+  const list = document.getElementById('reviewFlagsList');
+  if(!_reviewFlags.length){
+    list.innerHTML = '<div style="color:var(--gray);font-size:13px;text-align:center;padding:20px 0">אין פריטים לבדיקה 🎉</div>';
+    return;
+  }
+  list.innerHTML = _reviewFlags.map(f => `
+    <div style="border:1px solid #FEE2E2;background:#FEF2F2;border-radius:10px;padding:10px 12px">
+      <div style="font-weight:700;font-size:13px">${f.client_name} · ${f.month}</div>
+      <div style="font-size:12px;color:var(--text2);margin:4px 0 8px">${f.detail||''}</div>
+      <button class="btn" style="font-size:11px;padding:4px 10px" onclick="resolveReviewFlag(${f.id})">✓ טופל</button>
+    </div>`).join('');
+}
+async function resolveReviewFlag(id){
+  if(!db) return;
+  try {
+    await db.from('tracker_review_flags').update({resolved: true}).eq('id', id);
+    _reviewFlags = _reviewFlags.filter(f => f.id !== id);
+    renderReviewFlagsList();
+    const badge = document.getElementById('reviewFlagsBadge');
+    if(_reviewFlags.length){ badge.textContent = '⚠️ '+_reviewFlags.length+' לבדיקה'; }
+    else { badge.style.display = 'none'; }
+  } catch(e){ console.error('resolve flag failed:', e); }
 }
 
 // Pre-load client data from Excel
