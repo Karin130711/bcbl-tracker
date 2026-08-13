@@ -911,6 +911,19 @@ function subscribeRealtime() {
       if(!r) return;
       const lsKey = 'bl_ck_' + r.month + '_' + r.tab + '_' + (r.client_name||'').replace(/[^א-ת\w]/g,'_').slice(0,40);
       LSS(lsKey, r.checks);
+      // עדכון אמיתי של סטטוס הפקת הדוחות - מגיע מיוזר 3 בפועל אחרי שהוא
+      // סיים (report_status='done') או נכשל (report_status='error'), לא
+      // מדומה בטיימר.
+      if(r.tab === 'sal' && r.report_status){
+        if(r.report_status === 'done'){
+          setPayrollSetSend(r.client_name, {status:'ready', ts: r.updated_at||new Date().toISOString()});
+          toast('✓ כל הדוחות הופקו בהצלחה עבור '+(r.client_name||'').slice(0,20)+' — מוכנים לשליחה למעסיק');
+        } else if(r.report_status === 'error'){
+          setPayrollSetSend(r.client_name, {status:'error', ts: r.updated_at||new Date().toISOString(), reason: r.report_error||'שגיאה לא ידועה'});
+          toast('❌ הפקת הדוחות נכשלה עבור '+(r.client_name||'').slice(0,20)+': '+(r.report_error||''));
+        }
+        renderTable();
+      }
       // Re-render if same month/tab
       if(r.month === curMonth && r.tab === curTab) {
         updateStats(); renderTable();
@@ -1235,11 +1248,15 @@ function toggleCheck(month, tab, row, idx){
   if(tab==='sal' && idx===0 && arr[0]===true){
     runAttendanceReportGeneration(row[0]);
   }
-  // תלושים אושרו (sal, index 1) → הפעל אוטומטית הפקת סט השכר לפי מה שהוגדר בכרטיס
-  // הלקוח, וגם הפקת קובץ פקודת שכר (BCBL) הפנימי לכל הלקוחות
+  // תלושים אושרו (sal, index 1) → שולח בקשה אמיתית ליוזר 3 (triggerPythonPayrollJob
+  // כבר כותב is_processed=false בכל פעם, כך שגם ביטול+סימון-מחדש לאחר תיקון
+  // תמיד יעורר בקשה טרייה). ה"✓ הופק" האמיתי מגיע רק מ-subscribeRealtime,
+  // כשה-Python בפועל מעדכן report_status='done' - ראו למטה.
+  // (הוסרו כאן שתי קריאות לפונקציות ישנות - runPayrollSetGeneration/
+  // runPayrollOrderFileGeneration - שהיו שלד מדומה עם setTimeout מציג "✓ הופק"
+  // בלי לשלוח שום דבר בפועל. הן עדיין קיימות בקובץ כי ייתכן שדברים אחרים
+  // מפנים אליהן, אבל אינן נקראות יותר מכאן.)
   if(tab==='sal' && idx===1 && arr[1]===true){
-    runPayrollSetGeneration(row[0]);
-    runPayrollOrderFileGeneration(row[0]);
     triggerPythonPayrollJob(row[0]);
   }
 }
