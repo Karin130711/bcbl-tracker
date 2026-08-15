@@ -772,6 +772,18 @@ tbody td:first-child{padding-right:10px;text-align:right}
 <script>
 
 // ══════════════════════════════════════════
+// רשימת 19 הדוחות הקבועה, במספור יציב (1-19). זה מקור האמת היחיד לסדר
+// הדוחות - גם התצוגה בכרטיס הלקוח וגם השליחה לפייתון (כמספרים, לא
+// כשמות) מתבססות על הרשימה הזו, כדי שלא יהיה יותר תלוי-שם/גרשיים
+// (בעיה שכבר גרמה לדוח "קובץ מס"ב" לא להיות מזוהה בעבר).
+// חשוב: לא לשנות את הסדר הקיים בלי לתאם עם main_worker.py בשרת - שם
+// יש רשימה זהה שממפה מספר בחזרה לשם האמיתי של הדוח.
+const REPORT_LIST = ['תלושי שכר','דוח פקודת שכר (PDF)','דוח 102 חודשי','דוח 102 מצטבר','תמחיר חודשי כל העובדים','תמחיר חודשי סיכומים','תמחיר מצטבר כל העובדים','תמחיר מצטבר סיכומים','דוח עלות שכר -> נטו','ריכוז חופשות ומחלות','ריכוז משכורות וניכויים','ריכוז קופות גמל מרוכז','ריכוז קופות גמל מפורט','פירוט רכיבי שכר','קובץ מס"ב','פירוט מס"ב','דוח סרגל דוחות','קובץ פקודת שכר (BCBL)','דוח נכוחות וניצולים (Excel)'];
+function reportNamesToNumbers(names){
+  return (names||[]).map(n => REPORT_LIST.indexOf(n) + 1).filter(n => n > 0);
+}
+
+// ══════════════════════════════════════════
 // SUPABASE SYNC ENGINE
 // ══════════════════════════════════════════
 const SUPA_URL = 'https://gsyhoqtifqwyqvfmexln.supabase.co';
@@ -1275,12 +1287,15 @@ async function triggerPythonPayrollJob(clientName){
     return;
   }
   // סט הדוחות שהוגדר ללקוח בכרטיס שלו + שני הדוחות הקבועים (BCBL, נוכחות
-  // וניצולים) שתמיד מופקים לכולם, ללא כפילויות
-  const reports = [...new Set([
+  // וניצולים) שתמיד מופקים לכולם, ללא כפילויות - וממירים למספרים לפי
+  // REPORT_LIST הקבועה, כדי שהפייתון יתאים דוח בוודאות לפי מספר ולא לפי
+  // התאמת מחרוזת (שעלולה להישבר בגלל גרשיים כמו ב-'קובץ מס"ב')
+  const reportNames = [...new Set([
     ...(cd.salReportsSent||[]),
     'קובץ פקודת שכר (BCBL)',
     'דוח נכוחות וניצולים (Excel)'
   ])];
+  const reports = reportNamesToNumbers(reportNames);
   try {
     await db.from('tracker_checks').upsert({
       month: curMonth, tab: 'sal', client_name: clientName,
@@ -4211,9 +4226,9 @@ function openClientPanel(clientName, type, acct){
       </div>
       <div style="font-size:11px;color:#94A3B8;margin:8px 0 4px">אילו דוחות נשלחים:</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px">
-        ${['תלושי שכר','דוח פקודת שכר (PDF)','דוח 102 חודשי','דוח 102 מצטבר','תמחיר חודשי כל העובדים','תמחיר חודשי סיכומים','תמחיר מצטבר כל העובדים','תמחיר מצטבר סיכומים','דוח עלות שכר -> נטו','ריכוז חופשות ומחלות','ריכוז משכורות וניכויים','ריכוז קופות גמל מרוכז','ריכוז קופות גמל מפורט','פירוט רכיבי שכר','קובץ מס"ב','פירוט מס"ב','דוח סרגל דוחות','קובץ פקודת שכר (BCBL)','דוח נכוחות וניצולים (Excel)'].map(r => {
+        ${REPORT_LIST.map((r, idx) => {
           const checked = (cd.salReportsSent||[]).includes(r);
-          return `<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="cp-sal-report" value="${r}" ${checked?'checked':''} ${cd.isEmployer==='כן'?'':'disabled'}>${r}</label>`;
+          return `<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="cp-sal-report" value="${r}" ${checked?'checked':''} ${cd.isEmployer==='כן'?'':'disabled'}><span style="color:#94A3B8;min-width:16px">${idx+1}.</span>${r}</label>`;
         }).join('')}
       </div>
     </div>
