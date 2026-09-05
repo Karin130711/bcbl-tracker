@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head>
 <meta charset="UTF-8">
@@ -262,8 +262,8 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <div class="main-tab" id="mainTabClose" onclick="switchMainTab('close')">📊 סגירות שנתיות</div>
     <div class="main-tab" id="mainTabClients" onclick="switchMainTab('clients')">👥 לקוחות</div>
     <div class="main-tab" id="mainTabProc" onclick="switchMainTab('proc')">⚙️ עיבוד נתונים</div>
-    <div class="main-tab" id="mainTabFees" onclick="switchMainTab('fees')">💰 מעקב שכ"ט</div>
-  </div>
+    <div class="main-tab" id="mainTabFees" onclick="switchMainTab('fees')">💰 מעקב שכ"ט</div><!-- BCBL-DESK-TAB-A -->
+    <div class="main-tab" id="mainTabDesk" onclick="switchMainTab('desk')">📨 מוקד שירות</div><!-- BCBL-DESK-TAB-Z -->  </div>
   <div style="display:flex;align-items:center;gap:10px;padding:0 16px 0 0">
     <span id="syncIndicator" style="display:flex;align-items:center;font-size:11px;color:var(--text3)">
       <span class="sync-dot offline" id="syncDot"></span>&nbsp;מקומי
@@ -632,6 +632,8 @@ tbody td:first-child{padding-right:10px;text-align:right}
 <div id="mainProc" style="display:none">
   <div style="background:#fff;border-bottom:2px solid #E2E8F0;display:flex;align-items:center;padding:0 16px">
     <div class="sheet-tab active" id="procTabSal" onclick="switchProcTab('sal')" style="font-size:13px;padding:10px 20px">💰 שכר</div>
+    <div class="sheet-tab" id="procTabMissinv" onclick="switchProcTab('missinv')" style="font-size:13px;padding:10px 20px">📄 דוח חשבוניות חסרות</div>
+    <div class="sheet-tab" id="procTabMasav" onclick="switchProcTab('masav')" style="font-size:13px;padding:10px 20px">🏦 הפקת מס"ב</div>
     <div class="sheet-tab" id="procTabVat" onclick="switchProcTab('vat')" style="font-size:13px;padding:10px 20px">🧾 מע"מ</div>
     <div class="sheet-tab" id="procTabYear" onclick="switchProcTab('year')" style="font-size:13px;padding:10px 20px">📊 דוחות שנתיים</div>
     <div class="sheet-tab" id="procTabMisc" onclick="switchProcTab('misc')" style="font-size:13px;padding:10px 20px">📋 שונות</div>
@@ -639,6 +641,8 @@ tbody td:first-child{padding-right:10px;text-align:right}
     <div class="sheet-tab" id="procTabSign" onclick="switchProcTab('sign')" style="font-size:13px;padding:10px 20px">🟢 חתימה ירוקה</div>
   </div>
   <div id="procSal" style="padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">💰 שכר</div><div style="color:#64748B;font-size:13px">עיבוד נתוני שכר וקליטה למיכפל — בקרוב</div></div>
+  <div id="procMissinv" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">📄 דוח חשבוניות חסרות</div><div style="color:#64748B;font-size:13px">הפקת דוח חשבוניות חסרות — בקרוב</div></div>
+  <div id="procMasav" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">🏦 הפקת מס"ב</div><div style="color:#64748B;font-size:13px">הפקת קובץ מס"ב לתשלומים — בקרוב</div></div>
   <div id="procVat" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">🧾 מע"מ</div><div style="color:#64748B;font-size:13px">עיבוד דוחות מע"מ — בקרוב</div></div>
   <div id="procYear" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">📊 דוחות שנתיים</div><div style="color:#64748B;font-size:13px">עיבוד דוחות שנתיים — בקרוב</div></div>
   <div id="procMisc" style="display:none;padding:30px;direction:rtl"><div style="font-size:17px;font-weight:700;margin-bottom:6px">📋 שונות</div><div style="color:#64748B;font-size:13px">טפסים ומסמכים שונים — בקרוב</div></div>
@@ -791,17 +795,84 @@ const SUPA_KEY = 'sb_publishable_mAXuLinpMmwSxr97-Mn_HA_Hssv1GAe';
 let db = null;
 let syncEnabled = false;
 
-function initSupabase() {
+// ══════════════════════════════════════════
+// LOGIN GATE
+// המפתח שלמעלה גלוי לכל מי שפותח את הקובץ, ולכן הוא לא סוד. מה שמגן על
+// הנתונים הוא RLS בצד Supabase שמתיר גישה רק ל-authenticated, וזה אומר
+// שהדשבורד חייב להתחבר לפני שהוא מושך משהו. בלי ההתחברות הזו כל הקריאות
+// יחזרו ריקות ובלי שום הודעת שגיאה - המסך פשוט ייראה ריק.
+// ══════════════════════════════════════════
+function loginFormHtml() {
+  return '<h2 style="margin:0 0 4px;font-size:19px;">כניסה לדשבורד</h2>' +
+    '<div style="color:#666;font-size:13px;margin-bottom:18px;">משרד BCBL</div>' +
+    '<input id="bcblEmail" type="email" required autocomplete="username" placeholder="אימייל" ' +
+      'style="width:100%;box-sizing:border-box;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:6px;font-size:14px;">' +
+    '<input id="bcblPass" type="password" required autocomplete="current-password" placeholder="סיסמה" ' +
+      'style="width:100%;box-sizing:border-box;padding:10px;margin-bottom:14px;border:1px solid #ccc;border-radius:6px;font-size:14px;">' +
+    '<button type="submit" id="bcblLoginBtn" ' +
+      'style="width:100%;padding:11px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-size:15px;cursor:pointer;">כניסה</button>' +
+    '<div id="bcblLoginErr" style="color:#c00;font-size:13px;margin-top:12px;min-height:18px;"></div>';
+}
+
+function buildLoginOverlay() {
+  if(document.getElementById('bcblLoginOverlay')) return;
+  const ov = document.createElement('div');
+  ov.id = 'bcblLoginOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#f4f5f7;display:flex;' +
+    'align-items:center;justify-content:center;font-family:inherit;direction:rtl;';
+  const form = document.createElement('form');
+  form.id = 'bcblLoginForm';
+  form.style.cssText = 'background:#fff;padding:28px 32px;border-radius:12px;' +
+    'box-shadow:0 4px 24px rgba(0,0,0,.12);min-width:320px;';
+  form.innerHTML = loginFormHtml();
+  ov.appendChild(form);
+  document.body.appendChild(ov);
+  form.addEventListener('submit', doLogin);
+}
+
+async function doLogin(ev) {
+  ev.preventDefault();
+  const btn = document.getElementById('bcblLoginBtn');
+  const err = document.getElementById('bcblLoginErr');
+  err.textContent = '';
+  btn.disabled = true; btn.textContent = 'מתחבר...';
+  try {
+    const {error} = await db.auth.signInWithPassword({
+      email: document.getElementById('bcblEmail').value.trim(),
+      password: document.getElementById('bcblPass').value
+    });
+    if(error) throw error;
+    const ov = document.getElementById('bcblLoginOverlay');
+    if(ov) ov.remove();
+    startSync();
+  } catch(e) {
+    err.textContent = 'התחברות נכשלה: ' + (e.message || e);
+    btn.disabled = false; btn.textContent = 'כניסה';
+  }
+}
+
+async function bcblLogout() {
+  try { await db.auth.signOut(); } catch(e) {}
+  location.reload();
+}
+
+function startSync() {
+  syncEnabled = true;
+  setSyncStatus('syncing');
+  pullAllFromSupabase().then(() => {
+    setSyncStatus('online');
+    subscribeRealtime();
+    renderTable();
+    refreshReviewFlagsBadge();
+  });
+}
+
+async function initSupabase() {
   try {
     db = supabase.createClient(SUPA_URL, SUPA_KEY);
-    syncEnabled = true;
-    setSyncStatus('syncing');
-    pullAllFromSupabase().then(() => {
-      setSyncStatus('online');
-      subscribeRealtime();
-      renderTable();
-      refreshReviewFlagsBadge();
-    });
+    const {data} = await db.auth.getSession();
+    if(data && data.session) { startSync(); }
+    else { buildLoginOverlay(); }
   } catch(e) {
     console.error('Supabase init failed:', e);
     setSyncStatus('offline');
@@ -4573,7 +4644,7 @@ updateAcctFilters();
 
 // ── Processing sub-tab switch ──
 function switchProcTab(t){
-  ['sal','vat','year','misc','ctrl','sign'].forEach(x=>{
+  ['sal','missinv','masav','vat','year','misc','ctrl','sign'].forEach(x=>{
     document.getElementById('procTab'+x.charAt(0).toUpperCase()+x.slice(1)).className='sheet-tab'+(x===t?' active':'');
     document.getElementById('proc'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=x===t?'':'none';
   });
@@ -5408,5 +5479,489 @@ setTimeout(() => {
   if(active) active.scrollIntoView({behavior:'auto',block:'nearest',inline:'center'});
 }, 100);
 </script>
+<!-- BCBL-DESK-BLOCK-A -->
+<script src="service/queue_data.js"></script>
+<!-- ============================================================ BCBL DESK ==
+     Service-desk tab for the office dashboard.
+     Injected into index.html by patch_dashboard.py. Everything is scoped to
+     #mainDesk and wrapped in an IIFE - it shares no name with the dashboard.
+     ======================================================================= -->
+<div id="mainDesk" style="display:none">
+<style>
+#mainDesk{padding:16px;font:14px/1.55 "Segoe UI",Arial,sans-serif;color:#1b2430}
+#mainDesk .dk-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-bottom:16px}
+#mainDesk .dk-kpi{background:#fff;border:1px solid #e3e8ef;border-radius:10px;padding:11px 13px;cursor:pointer;transition:.12s}
+#mainDesk .dk-kpi:hover{border-color:#2b5fa8}
+#mainDesk .dk-kpi.on{border-color:#2b5fa8;box-shadow:0 0 0 2px rgba(43,95,168,.14)}
+#mainDesk .dk-kpi b{display:block;font-size:25px;line-height:1.2;font-weight:600}
+#mainDesk .dk-kpi span{color:#6b7885;font-size:12px}
+#mainDesk .dk-kpi.breach b{color:#c9302c} #mainDesk .dk-kpi.risk b{color:#c77700}
+#mainDesk .dk-desks{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+#mainDesk .dk-desk{background:#fff;border:1px solid #e3e8ef;border-radius:10px;padding:10px 14px;min-width:150px}
+#mainDesk .dk-desk.late{border-color:#f2c3c0;background:#fffafa}
+#mainDesk .dk-desk.clean{border-color:#bfe3ca;background:#f4fbf6}
+#mainDesk .dk-desk b{font-size:13.5px}
+#mainDesk .dk-desk-n{font-size:24px;font-weight:600;line-height:1.2}
+#mainDesk .dk-desk-msg{color:#1f6b3a;font-size:12.5px;margin-top:3px;max-width:220px}
+#mainDesk .dk-tasks{background:#fff;border:1px solid #e3e8ef;border-radius:10px;padding:12px 14px;margin-bottom:16px}
+#mainDesk .dk-tasks-head{display:flex;align-items:baseline;gap:10px;margin-bottom:9px}
+#mainDesk .dk-tasks-add{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px}
+#mainDesk .dk-tasks-add input[type=text]{flex:1;min-width:230px;padding:7px 10px;border:1px solid #e3e8ef;border-radius:8px;font-family:inherit;font-size:13px}
+#mainDesk .dk-tasks-add input[type=date]{padding:7px 9px;border:1px solid #e3e8ef;border-radius:8px;font-family:inherit;font-size:13px}
+#mainDesk .dk-tasks-add button{padding:7px 16px;border-radius:8px;border:1px solid #2b5fa8;background:#2b5fa8;color:#fff;font-family:inherit;font-size:13px;cursor:pointer}
+#mainDesk .dk-task-list{list-style:none;margin:0;padding:0}
+#mainDesk .dk-task{display:flex;align-items:flex-start;gap:9px;padding:7px 2px;border-top:1px solid #f0f3f7}
+#mainDesk .dk-task input[type=checkbox]{margin-top:3px;width:16px;height:16px;cursor:pointer;flex:none}
+#mainDesk .dk-task-txt{flex:1}
+#mainDesk .dk-task .dk-when{font-size:12px;white-space:nowrap}
+#mainDesk .dk-task.over .dk-when{color:#c9302c;font-weight:600}
+#mainDesk .dk-task.today .dk-when{color:#c77700;font-weight:600}
+#mainDesk .dk-task.later .dk-when{color:#6b7885}
+#mainDesk .dk-task.done .dk-task-txt{text-decoration:line-through;color:#8a95a1}
+#mainDesk .dk-task-del{border:none;background:none;color:#b9c2cc;cursor:pointer;font-size:15px;line-height:1}
+#mainDesk .dk-task-del:hover{color:#c9302c}
+#mainDesk .dk-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+#mainDesk select,#mainDesk input[type=search]{padding:7px 10px;border:1px solid #e3e8ef;border-radius:8px;background:#fff;font-family:inherit;font-size:13px}
+#mainDesk table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e3e8ef;border-radius:10px;overflow:hidden}
+#mainDesk th{background:#eef2f7;text-align:right;padding:9px 12px;font-size:12.5px;color:#43505e;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none}
+#mainDesk td{padding:10px 12px;border-top:1px solid #e3e8ef;vertical-align:top}
+#mainDesk tr.dk-row{cursor:pointer} #mainDesk tr.dk-row:hover td{background:#f7fafd}
+#mainDesk .dk-sub{color:#6b7885;font-size:12.5px}
+#mainDesk .dk-clock{font-weight:600;white-space:nowrap}
+#mainDesk .dk-clock.ok{color:#1f9d55} #mainDesk .dk-clock.risk{color:#c77700} #mainDesk .dk-clock.breach{color:#c9302c}
+#mainDesk .dk-pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11.5px;border:1px solid #e3e8ef;background:#f6f8fb;color:#43505e;white-space:nowrap}
+#mainDesk .dk-pill.draft{background:#eaf1fb;border-color:#c3d6f0;color:#24487d}
+#mainDesk .dk-pill.flag{background:#fdeceb;border-color:#f2c3c0;color:#95322e}
+#mainDesk .dk-pill.esc{background:#fff4e0;border-color:#f0d9a8;color:#8a5c00}
+#mainDesk .dk-gaps{background:#fff;border:1px solid #e3e8ef;border-radius:10px;padding:14px 16px;margin-top:20px}
+#mainDesk .dk-stale{background:#fff8e6;border:1px solid #f0dca8;border-radius:8px;padding:9px 11px;font-size:12.5px;color:#7a5a00;margin-bottom:12px}
+#dkShade{position:fixed;inset:0;background:rgba(15,22,31,.45);display:none;z-index:9998}
+#dkDrawer{position:fixed;inset-block:0;inset-inline-start:0;width:min(560px,94vw);background:#fff;box-shadow:0 0 30px rgba(0,0,0,.25);display:none;overflow:auto;padding:20px 22px;z-index:9999;font:14px/1.55 "Segoe UI",Arial,sans-serif;color:#1b2430}
+#dkDrawer .dk-block{border:1px solid #e3e8ef;border-radius:10px;padding:12px;margin:14px 0}
+#dkDrawer .dk-block h4{margin:0 0 8px;font-size:13px;color:#6b7885;font-weight:600}
+#dkDrawer .dk-draft{white-space:pre-wrap;background:#f8fafc;border:1px dashed #c3d6f0;border-radius:8px;padding:11px}
+#dkDrawer .dk-note{background:#fff8e6;border:1px solid #f0dca8;border-radius:8px;padding:9px 11px;font-size:12.5px;color:#7a5a00;margin:14px 0}
+#dkDrawer button{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid #e3e8ef;background:#fff;cursor:pointer}
+#dkDrawer button.dk-primary{background:#2b5fa8;color:#fff;border-color:#2b5fa8}
+#dkDrawer button:disabled{opacity:.45;cursor:not-allowed}
+</style>
+
+  <div id="dkStale"></div>
+  <div id="dkDesks"></div>
+
+  <div class="dk-tasks" id="dkTasksBox">
+    <div class="dk-tasks-head">
+      <b>📌 התזכורות שלי</b>
+      <span class="dk-sub" id="dkWho"></span>
+    </div>
+    <div class="dk-tasks-add">
+      <input type="text" id="dkTaskText" maxlength="200"
+             placeholder="תזכורת או מטלה... (למשל: לבקש דוח בנק מאלמא)">
+      <input type="date" id="dkTaskDue" title="ליום מסוים - אפשר להשאיר ריק">
+      <button id="dkTaskAdd">הוספה</button>
+    </div>
+    <ul class="dk-task-list" id="dkTaskList"></ul>
+    <details id="dkArchive"><summary class="dk-sub">ארכיון מטלות</summary>
+      <ul class="dk-task-list" id="dkTaskDone"></ul>
+    </details>
+  </div>
+
+  <div class="dk-kpis" id="dkKpis"></div>
+  <div class="dk-bar">
+    <select id="dkOwner"><option value="">כל המנח"שיות</option></select>
+    <select id="dkChannel"><option value="">כל הערוצים</option>
+      <option value="whatsapp">וואטסאפ</option><option value="email">מייל</option></select>
+    <select id="dkStatus">
+      <option value="open">פתוחות בלבד</option><option value="">הכל</option>
+      <option value="new">חדש</option><option value="in_progress">בטיפול</option>
+      <option value="waiting_client">ממתין ללקוח</option>
+      <option value="escalated">הוסלם</option><option value="closed">נסגר</option></select>
+    <input type="search" id="dkText" placeholder="🔍 חיפוש לקוח / נושא...">
+    <span class="dk-sub" id="dkCount"></span>
+    <span class="dk-sub" id="dkStamp" style="margin-inline-start:auto"></span>
+  </div>
+  <table>
+    <thead><tr>
+      <th data-dksort="sla">שעון SLA</th><th data-dksort="client">לקוח</th>
+      <th data-dksort="subject">נושא</th><th data-dksort="owner">אחראית</th>
+      <th data-dksort="status">סטטוס</th><th data-dksort="mood">מצב רוח</th>
+      <th data-dksort="signal">סימן מהלקוח</th>
+      <th data-dksort="created">נפתחה</th>
+      <th>סימונים</th></tr></thead>
+    <tbody id="dkRows"></tbody>
+  </table>
+  <div id="dkEmpty" style="display:none;padding:30px;text-align:center;color:#6b7885"></div>
+  <div class="dk-gaps" id="dkGaps"></div>
+</div>
+<div id="dkShade"></div>
+<div id="dkDrawer"></div>
+
+<script>
+(function(){
+  var D = window.QUEUE_DATA || null;
+  var sortKey='sla', sortDir=1, kpiFilter='';
+  var q = function(s){ return document.querySelector(s); };
+  var esc = function(s){ return String(s==null?'':s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+
+  function store(){ try{ return JSON.parse(localStorage.getItem('bcbl_desk')||'{}'); }
+                    catch(e){ return {}; } }
+  function save(o){ try{ localStorage.setItem('bcbl_desk', JSON.stringify(o)); }catch(e){} }
+
+  function mins(m){ var h=Math.floor(m/60), r=m%60;
+    return h ? (h+" ש' "+(r?r+" ד'":"")).trim() : r+" ד'"; }
+  function clockLabel(t){
+    if(t.status==='closed') return t.sla.level==='breach'?'נסגרה בחריגה':'נסגרה בזמן';
+    if(t.status==='waiting_client') return 'מושהה — ממתין ללקוח';
+    var r=t.sla.remaining_minutes;
+    return (r<0?'חריגה '+mins(-r):'נותרו '+mins(r))
+         + (t.sla.clock==='first'?' (מענה ראשון)':' (סגירה)');
+  }
+  function ago(iso){
+    var d=new Date(String(iso).replace(' ','T'));
+    var m=Math.round((Date.now()-d)/60000);
+    if(m<60) return "לפני "+m+" דק'";
+    if(m<1440) return 'לפני '+Math.round(m/60)+' שעות';
+    return 'לפני '+Math.round(m/1440)+' ימים';
+  }
+
+  function renderKpis(){
+    var s=D.summary||{}, med = s.median_first_response==null ? '—'
+      : (s.median_first_response>=60 ? (s.median_first_response/60).toFixed(1)+" ש'"
+                                     : s.median_first_response+" ד'");
+    var cards=[
+      {k:'',v:s.open,l:'פניות פתוחות',c:''},
+      {k:'breach',v:s.breach,l:'חריגות SLA',c:'breach'},
+      {k:'risk',v:s.risk,l:'מתקרבות לחריגה',c:'risk'},
+      {k:'unanswered',v:s.unanswered,l:'טרם נענו כלל',c:''},
+      {k:'draft',v:s.drafts_waiting,l:'טיוטות ממתינות',c:''},
+      {k:'escalated',v:s.escalated,l:'הוסלמו לקרין/ישראל',c:''},
+      {k:'',v:med,l:'מענה ראשון — חציון',c:''},
+      {k:'',v:(s.coverage==null?'—':s.coverage+'%'),l:'נענו ממקור מתועד',c:''},
+      {k:'upset',v:s.upset,l:'לקוחות לא מרוצים',c:'risk'}];
+    q('#dkKpis').innerHTML = cards.map(function(c){
+      return '<div class="dk-kpi '+c.c+' '+((kpiFilter&&kpiFilter===c.k)?'on':'')+
+             '" data-k="'+c.k+'"><b>'+(c.v==null?'—':c.v)+'</b><span>'+c.l+'</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(q('#dkKpis').querySelectorAll('.dk-kpi'), function(el){
+      el.onclick=function(){ var k=el.dataset.k;
+        kpiFilter=(kpiFilter===k||!k)?'':k; render(); };
+    });
+  }
+
+  var KEYS={ sla:function(t){return t.status==='closed'?1e9:t.sla.remaining_minutes;},
+             client:function(t){return t.client;}, subject:function(t){return t.subject;},
+             owner:function(t){return t.owner;}, status:function(t){return t.status;},
+             mood:function(t){ return {angry:0,frustrated:1,calm:2}[t.sentiment]; },
+             signal:function(t){
+               return {negative:0,neutral:1,positive:2}[t.client_signal]; },
+             created:function(t){return t.created_at;} };
+
+  // Only a negative mood earns ink. A column of "רגוע" is noise, and a
+  // machine-read mood must never look like a verdict on the client.
+  function moodCell(t){
+    if(t.sentiment==='angry')
+      return '<span class="dk-pill flag">כועס</span>';
+    if(t.sentiment==='frustrated')
+      return '<span class="dk-pill esc">מתוסכל</span>';
+    if(t.sentiment) return '<span class="dk-sub">רגוע</span>';
+    return '<span class="dk-sub">—</span>';
+  }
+  // We never ask the client anything - this is read from the message the
+  // client sent us anyway. A hint, not a score, and empty most of the time.
+  function signalCell(t){
+    if(t.client_signal==='positive')
+      return '<span class="dk-pill" style="background:#eaf7ee;'+
+             'border-color:#bfe3ca;color:#1f6b3a">הודה / אישר</span>';
+    if(t.client_signal==='negative')
+      return '<span class="dk-pill flag">חזר לא מרוצה</span>';
+    return '<span class="dk-sub">—</span>';
+  }
+
+  /* ---------------------------------------------------- my reminders ----
+     Private to the person sitting at this machine. Identity comes from the
+     dashboard's own "מי את?" (bl_my_name) - one place to set it, not two -
+     and the tasks live under that name in this browser profile. On the
+     terminal server each user has her own Windows profile, so one person's
+     list never reaches another's screen and nothing leaves the machine. */
+  function whoAmI(){
+    try{ return (localStorage.getItem('bl_my_name')||'').trim(); }
+    catch(e){ return ''; }
+  }
+  function taskKey(){ return 'bcbl_tasks_' + whoAmI(); }
+  function tasks(){
+    try{ return JSON.parse(localStorage.getItem(taskKey())||'[]'); }
+    catch(e){ return []; }
+  }
+  function saveTasks(list){
+    try{ localStorage.setItem(taskKey(), JSON.stringify(list)); }catch(e){}
+  }
+  function today(){
+    var d=new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+
+           String(d.getDate()).padStart(2,'0');
+  }
+  function dueLabel(due){
+    if(!due) return {cls:'', text:''};
+    var t=today();
+    if(due < t){
+      var days=Math.round((new Date(t)-new Date(due))/86400000);
+      return {cls:'over', text:'באיחור '+days+' ימים'};
+    }
+    if(due===t) return {cls:'today', text:'להיום'};
+    var d=new Date(due);
+    return {cls:'later',
+            text:d.getDate()+'/'+(d.getMonth()+1)};
+  }
+
+  function renderTasks(){
+    var me=whoAmI();
+    q('#dkWho').textContent = me ? ('— ' + me)
+      : '— לא נבחר שם. לחצי על "מי את?" בראש הדשבורד כדי שהתזכורות יישמרו לך.';
+    var box=q('#dkTasksBox');
+    box.querySelector('.dk-tasks-add').style.display = me ? '' : 'none';
+    if(!me){ q('#dkTaskList').innerHTML=''; q('#dkTaskDone').innerHTML='';
+             q('#dkArchive').style.display='none'; return; }
+    q('#dkArchive').style.display='';
+
+    var all=tasks();
+    // Overdue first, then today, then dated, then undated. What is late has
+    // to be at the top or the board becomes a place things go to be forgotten.
+    var open=all.filter(function(t){ return !t.done; }).sort(function(a,b){
+      if(!a.due && !b.due) return a.id-b.id;
+      if(!a.due) return 1;
+      if(!b.due) return -1;
+      return a.due < b.due ? -1 : a.due > b.due ? 1 : 0;
+    });
+    q('#dkTaskList').innerHTML = open.length ? open.map(function(t){
+      var d=dueLabel(t.due);
+      return '<li class="dk-task '+d.cls+'">'+
+        '<input type="checkbox" data-dktask="'+t.id+'">'+
+        '<span class="dk-task-txt">'+esc(t.text)+'</span>'+
+        '<span class="dk-when">'+d.text+'</span>'+
+        '<button class="dk-task-del" data-dktaskdel="'+t.id+'" '+
+        'title="מחיקה">✕</button></li>';
+    }).join('') : '<li class="dk-sub" style="padding:7px 2px">'+
+                  'אין תזכורות פתוחות.</li>';
+
+    var done=all.filter(function(t){ return t.done; }).reverse();
+    q('#dkTaskDone').innerHTML = done.length ? done.map(function(t){
+      return '<li class="dk-task done">'+
+        '<input type="checkbox" checked data-dktask="'+t.id+'">'+
+        '<span class="dk-task-txt">'+esc(t.text)+'</span>'+
+        '<span class="dk-when dk-sub">'+(t.doneAt||'').slice(0,10)+'</span>'+
+        '<button class="dk-task-del" data-dktaskdel="'+t.id+'">✕</button></li>';
+    }).join('') : '<li class="dk-sub" style="padding:7px 2px">הארכיון ריק.</li>';
+    q('#dkArchive').querySelector('summary').textContent =
+      'ארכיון מטלות (' + done.length + ')';
+  }
+
+  function addTask(){
+    if(!whoAmI()){ alert('בחרי קודם "מי את?" בראש הדשבורד.'); return; }
+    var text=q('#dkTaskText').value.trim();
+    if(!text) return;
+    var list=tasks();
+    list.push({id:Date.now(), text:text, due:q('#dkTaskDue').value||'',
+               done:false, created:new Date().toISOString()});
+    saveTasks(list);
+    q('#dkTaskText').value=''; q('#dkTaskDue').value='';
+    renderTasks();
+  }
+
+  // The desks strip. This is the part the bookkeepers actually look at.
+  function desksHtml(){
+    var d = D.desks || {}, names = Object.keys(d);
+    if(!names.length) return '';
+    return '<div class="dk-desks">' + names.map(function(n){
+      var x = d[n];
+      if(x.clean) return '<div class="dk-desk clean"><b>'+esc(n)+'</b>'+
+        '<div class="dk-desk-msg">'+esc(x.message)+'</div>'+
+        (x.waiting_client?'<div class="dk-sub">'+x.waiting_client+
+          ' ממתינות ללקוח — לא עלייך</div>':'')+'</div>';
+      return '<div class="dk-desk'+(x.breach?' late':'')+'"><b>'+esc(n)+'</b>'+
+        '<div class="dk-desk-n">'+x.needs_me+'</div>'+
+        '<div class="dk-sub">ממתינות לך'+
+        (x.breach?' · '+x.breach+' בחריגה':'')+
+        (x.drafts?' · '+x.drafts+' טיוטות מוכנות':'')+'</div></div>';
+    }).join('') + '</div>';
+  }
+
+  function visible(){
+    var owner=q('#dkOwner').value, ch=q('#dkChannel').value,
+        st=q('#dkStatus').value, txt=q('#dkText').value.trim();
+    return D.tickets.filter(function(t){
+      if(st==='open' ? t.status==='closed' : (st && t.status!==st)) return false;
+      if(owner && t.owner!==owner) return false;
+      if(ch && t.channel!==ch) return false;
+      if(txt && (t.client+' '+t.subject+' '+(t.topic||'')).indexOf(txt)<0) return false;
+      if(kpiFilter==='breach' && t.sla.level!=='breach') return false;
+      if(kpiFilter==='risk' && t.sla.level!=='risk') return false;
+      if(kpiFilter==='unanswered' && (t.answered||t.status==='closed')) return false;
+      if(kpiFilter==='draft' && !t.has_draft) return false;
+      if(kpiFilter==='escalated' && t.status!=='escalated') return false;
+      if(kpiFilter==='upset' &&
+         ['frustrated','angry'].indexOf(t.sentiment)<0) return false;
+      return true;
+    });
+  }
+
+  function render(){
+    if(!D){
+      q('#dkStale').innerHTML='<div class="dk-stale">קובץ הנתונים '+
+        '<code>queue_data.js</code> לא נטען. הריצי <code>python desk.py export</code> '+
+        'בשרת ורענני את הדף.</div>';
+      return;
+    }
+    // A stale export is worse than none - it shows green clocks that have
+    // long since gone red. Say so loudly.
+    var age = (Date.now()-new Date(D.generated_at.replace(' ','T')))/60000;
+    q('#dkStale').innerHTML = age>30
+      ? '<div class="dk-stale">הנתונים עודכנו לפני '+Math.round(age/60)+
+        ' שעות. שעוני ה-SLA שמוצגים כאן אינם עדכניים.</div>' : '';
+    renderKpis();
+    q('#dkDesks').innerHTML = desksHtml();
+    renderTasks();
+    var dec=store();
+    var list=visible().sort(function(a,b){
+      var x=KEYS[sortKey](a), y=KEYS[sortKey](b);
+      return (x<y?-1:x>y?1:0)*sortDir; });
+    q('#dkRows').innerHTML = list.map(function(t){
+      var m=[];
+      if(t.has_draft) m.push('<span class="dk-pill draft">טיוטה מוכנה</span>');
+      if(t.qa_flags.length) m.push('<span class="dk-pill flag">'+t.qa_flags.length+' דגלי בקרה</span>');
+      if(t.status==='escalated') m.push('<span class="dk-pill esc">הוסלם</span>');
+      if(t.attachments) m.push('<span class="dk-pill">'+t.attachments+' קבצים</span>');
+      if(dec[t.id]) m.push('<span class="dk-pill">אושר לשליחה</span>');
+      if(!t.answer_source) m.push('<span class="dk-pill">לא סווג</span>');
+      return '<tr class="dk-row" data-id="'+t.id+'"><td><span class="dk-clock '+
+        t.sla.level+'">'+clockLabel(t)+'</span></td><td>'+esc(t.client)+
+        '<div class="dk-sub">'+esc(t.channel_he)+' · '+esc(t.priority_he)+'</div></td><td>'+
+        esc(t.subject)+'<div class="dk-sub">'+esc(t.topic||'ללא נושא')+'</div></td><td>'+
+        esc(t.owner)+'</td><td>'+esc(t.status_he)+'</td><td>'+moodCell(t)+
+        '</td><td>'+signalCell(t)+'</td><td class="dk-sub">'+
+        ago(t.created_at)+'</td><td>'+m.join(' ')+'</td></tr>';
+    }).join('');
+    q('#dkEmpty').style.display=list.length?'none':'block';
+    q('#dkEmpty').textContent='אין פניות התואמות לסינון';
+    q('#dkCount').textContent=list.length+' מתוך '+D.tickets.length+' פניות';
+    Array.prototype.forEach.call(q('#dkRows').querySelectorAll('tr.dk-row'), function(tr){
+      tr.onclick=function(){ openDrawer(+tr.dataset.id); }; });
+    var g=D.gaps||[];
+    q('#dkGaps').innerHTML='<h4 style="margin:0 0 10px">סוגיות שאין להן מענה — '+
+      'ממתינות לקרין / ישראל ('+g.length+')</h4>'+
+      (g.length?'<ul>'+g.map(function(x){ return '<li>'+esc(x.question)+
+        '<div class="dk-sub">'+esc(x.client_name||'')+' · פנייה #'+x.ticket_id+
+        ' · נשאל '+ago(x.asked_at)+'</div></li>'; }).join('')+'</ul>'
+      :'<div class="dk-sub">אין סוגיות פתוחות.</div>');
+  }
+
+  function openDrawer(id){
+    var t=D.tickets.find(function(x){ return x.id===id; });
+    var approved=!!store()[id];
+    q('#dkDrawer').innerHTML=
+      '<button style="float:left" data-dkclose>סגור</button>'+
+      '<h2 style="margin:.2em 0 .1em;font-size:18px">'+esc(t.client)+'</h2>'+
+      '<div class="dk-sub">'+esc(t.subject)+' · '+esc(t.channel_he)+' · '+
+        esc(t.status_he)+' · אחראית: '+esc(t.owner)+'</div>'+
+      '<div class="dk-block"><h4>שעון SLA</h4><span class="dk-clock '+t.sla.level+
+        '">'+clockLabel(t)+'</span><div class="dk-sub">נוצלו '+t.sla.used_minutes+
+        ' מתוך '+t.sla.limit_minutes+' דקות עבודה'+
+        (t.sla.first_response_minutes!=null?' · מענה ראשון תוך '+
+          t.sla.first_response_minutes+" דק'":'')+'</div></div>'+
+      '<div class="dk-block"><h4>ההודעה האחרונה</h4><div>'+
+        esc(t.last_message||'—')+'</div></div>'+
+      '<div class="dk-block"><h4>מקור התשובה</h4><div>'+esc(t.answer_source_he)+
+        '</div>'+(t.escalation_reason?'<div class="dk-sub">סיבת הסלמה: '+
+        esc(t.escalation_reason)+' ('+esc(t.escalated_to||'')+')</div>':'')+'</div>'+
+      (t.draft?'<div class="dk-block"><h4>טיוטת מענה'+
+        (t.draft_by_ai?' (נוצרה אוטומטית — לבדיקה)':' (נכתבה ידנית)')+
+        '</h4><div class="dk-draft">'+esc(t.draft)+'</div></div>':'')+
+      (t.qa_flags.length?'<div class="dk-block"><h4>דגלי בקרה לפני שליחה</h4><ul>'+
+        t.qa_flags.map(function(f){ return '<li style="color:#95322e">'+esc(f)+'</li>'; })
+        .join('')+'</ul></div>':'')+
+      '<div class="dk-note">שכבת השליחה טרם מחוברת. אישור כאן נשמר מקומית בלבד '+
+        'ואינו שולח דבר ללקוח.</div>'+
+      '<div style="display:flex;gap:8px"><button class="dk-primary" '+
+        ((!t.draft||approved)?'disabled ':'')+'data-dkapprove="'+id+'">'+
+        (approved?'אושר':'אשר לשליחה')+'</button>'+
+        '<button data-dkesc="'+id+'">העבר לקרין / ישראל</button></div>';
+    q('#dkDrawer').style.display='block'; q('#dkShade').style.display='block';
+  }
+  function closeDrawer(){ q('#dkDrawer').style.display='none';
+                          q('#dkShade').style.display='none'; }
+
+  document.addEventListener('click', function(e){
+    var el=e.target;
+    if(el.hasAttribute && el.hasAttribute('data-dkclose')) return closeDrawer();
+    if(el.hasAttribute && el.hasAttribute('data-dkapprove')){
+      var id=+el.getAttribute('data-dkapprove');
+      var t=D.tickets.find(function(x){ return x.id===id; });
+      if(t.qa_flags.length && !confirm('לפנייה זו יש '+t.qa_flags.length+
+        ' דגלי בקרה שלא טופלו. לאשר בכל זאת?')) return;
+      var d=store(); d[id]={at:new Date().toISOString(),
+                            flags_overridden:t.qa_flags.length};
+      save(d); closeDrawer(); render(); return;
+    }
+    if(el.hasAttribute && el.hasAttribute('data-dkesc')){
+      var q2=prompt('מה השאלה שאין לה מענה?'); if(!q2) return;
+      var d2=store(); d2['gap_'+el.getAttribute('data-dkesc')]=
+        {q:q2, at:new Date().toISOString()};
+      save(d2); alert('נרשם. יופיע ברשימת הסוגיות הפתוחות בייצוא הבא.');
+      closeDrawer(); return;
+    }
+    if(el.id==='dkShade') return closeDrawer();
+    if(el.id==='dkTaskAdd') return addTask();
+    if(el.hasAttribute && el.hasAttribute('data-dktask')){
+      var id=+el.getAttribute('data-dktask');
+      var list=tasks().map(function(t){
+        if(t.id===id){ t.done=!t.done;
+          t.doneAt = t.done ? new Date().toISOString() : null; }
+        return t; });
+      saveTasks(list); renderTasks(); return;
+    }
+    if(el.hasAttribute && el.hasAttribute('data-dktaskdel')){
+      var did=+el.getAttribute('data-dktaskdel');
+      var t=tasks().filter(function(x){ return x.id===did; })[0];
+      if(t && !confirm('למחוק את "'+t.text+'"?')) return;
+      saveTasks(tasks().filter(function(x){ return x.id!==did; }));
+      renderTasks(); return;
+    }
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Enter' && e.target && e.target.id==='dkTaskText') addTask();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape') closeDrawer(); });
+
+  // The dashboard's own switchMainTab knows nothing about this tab, so wrap it
+  // rather than edit it - one less thing to redo when index.html changes.
+  var orig = window.switchMainTab;
+  window.switchMainTab = function(m){
+    orig(m);
+    var panel=document.getElementById('mainDesk'),
+        tab=document.getElementById('mainTabDesk');
+    if(!panel) return;
+    panel.style.display = (m==='desk') ? '' : 'none';
+    if(tab) tab.className = 'main-tab' + (m==='desk' ? ' active' : '');
+    if(m==='desk') render();
+  };
+
+  window.addEventListener('DOMContentLoaded', function(){
+    if(!D) return;
+    q('#dkStamp').textContent='עודכן: '+(D.generated_at||'');
+    q('#dkOwner').innerHTML += (D.staff||[]).map(function(n){
+      return '<option>'+esc(n)+'</option>'; }).join('');
+    ['dkOwner','dkChannel','dkStatus','dkText'].forEach(function(id){
+      q('#'+id).addEventListener('input', render); });
+    Array.prototype.forEach.call(
+      document.querySelectorAll('#mainDesk th[data-dksort]'), function(th){
+        th.onclick=function(){ var k=th.dataset.dksort;
+          sortDir=(k===sortKey)?-sortDir:1; sortKey=k; render(); }; });
+  });
+})();
+</script>
+<!-- ========================================================== END BCBL DESK -->
+
+<!-- BCBL-DESK-BLOCK-Z -->
 </body>
 </html>
